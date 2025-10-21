@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor ER a Autómatas - Con Librerías</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+    <div class="background-gradient"></div>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Conversor de Expresiones Regulares</h1>
+            <p>Simulación de Conversión con Librerías Externas</p>
+            <div class="controls">
+                <a href="index.html" class="mode-switch-btn">Cambiar a Modo "Con Lógica"</a>
+                <div class="theme-switcher" id="theme-switcher">
+                    <div class="theme-switcher-handle"></div>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <input type="text" id="regex-input" placeholder="Escribe una Expresión Regular..." autocomplete="off">
+                <div id="validation-status"></div>
+            </div>
+            <div class="output-container" id="output-container">
+                 <!-- Columnas generadas dinámicamente por JS -->
+            </div>
+        </main>
+    </div>
+    <script type="module" src="ui-simple.js"></script>
+</body>
+</html>
