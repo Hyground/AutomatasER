@@ -33,6 +33,15 @@ header {
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
+header h1 {
+    /* This rule is now effectively unused as h1 is removed from header */
+    margin-top: 0;
+    margin-bottom: 0.8em;
+    font-size: clamp(1.8em, 4vw, 2.8em); /* Responsive font size */
+    font-weight: 300;
+    letter-spacing: 1px;
+}
+
 /* ========================================================================== */
 /* Navigation Styles (Page Layout)                                            */
 /* Defines the appearance and layout of the main navigation menu.             */
@@ -91,54 +100,6 @@ main h2 {
 }
 
 /* ========================================================================== */
-/* AFD Controls (UI Component Styles)                                         */
-/* Styles for the input field and button for AFD conversion.                  */
-/* ========================================================================== */
-.afd-controls {
-    display: flex;
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
-    gap: 15px;
-    margin-bottom: 2em;
-    align-items: center;
-}
-
-#regex-input {
-    flex-grow: 1;
-    padding: 12px 15px;
-    border: 2px solid #ccc;
-    border-radius: 5px;
-    font-size: 1em;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-#regex-input:focus {
-    border-color: #3498db;
-    box-shadow: 0 0 8px rgba(52, 152, 219, 0.4);
-    outline: none;
-}
-
-#convert-btn {
-    padding: 12px 25px;
-    background-color: #2ecc71; /* Green */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    font-size: 1em;
-    cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.2s ease;
-    flex-shrink: 0; /* Prevent button from shrinking */
-}
-
-#convert-btn:hover {
-    background-color: #27ae60; /* Darker green */
-    transform: translateY(-2px);
-}
-
-#convert-btn:active {
-    transform: translateY(0);
-}
-
-/* ========================================================================== */
 /* Visualization Grid Layout (Page Layout)                                    */
 /* Defines how the main visualization containers are arranged on the page.    */
 /* ========================================================================== */
@@ -159,63 +120,6 @@ main h2 {
     .visualization-grid {
         grid-template-columns: repeat(3, 1fr); /* Three columns on larger screens */
     }
-}
-
-/* ========================================================================== */
-/* Visualization Container Styles (UI Component Styles)                       */
-/* Styles for the individual containers holding the generated visualizations. */
-/* ========================================================================== */
-#tree-container,
-#followpos-table,
-#dfa-diagram {
-    border: 1px solid #e0e0e0;
-    background-color: #fdfdfd;
-    padding: 15px;
-    border-radius: 5px;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
-    min-height: 250px; /* Minimum height for all containers */
-}
-
-#tree-container,
-#dfa-diagram {
-    height: 60vh; /* Responsive height for vis.js containers */
-    overflow: auto; /* Allow scrolling if content overflows */
-    resize: vertical; /* Allow user to resize height */
-}
-
-/* Specific sizing for followpos-table if needed, or let grid handle it */
-#followpos-table {
-    overflow-x: auto; /* Allow horizontal scrolling for wide tables */
-    max-height: 60vh; /* Keep it within view */
-}
-
-/* ========================================================================== */
-/* Table Styles (UI Component Styles - Internal Automaton Style)              */
-/* Styles for the generated followpos table.                                  */
-/* ========================================================================== */
-table {
-    border-collapse: collapse;
-    width: 100%; /* Make table responsive */
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    border-radius: 5px;
-    overflow: hidden; /* For rounded corners on table */
-    margin-top: 0; /* Already handled by parent div's margin-top */
-}
-
-th, td {
-    border: 1px solid #e0e0e0;
-    padding: 12px 15px;
-    text-align: left; /* Align text left for better readability */
-}
-
-th {
-    background-color: #f0f0f0;
-    font-weight: bold;
-    color: #555;
-}
-
-tr:nth-child(even) {
-    background-color: #f9f9f9;
 }
 
 /* ========================================================================== */
