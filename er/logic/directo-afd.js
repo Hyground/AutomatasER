@@ -184,12 +184,23 @@ export class ConversorDirecto {
             }
         }
 
+        // Mapa inverso: nombre de estado -> conjunto (arreglo) de posiciones
+        const stateSets = {};
+        for (const [key, name] of stateNameMap.entries()) {
+            try {
+                stateSets[name] = JSON.parse(key);
+            } catch (_) {
+                stateSets[name] = [];
+            }
+        }
+
         return {
             states: Array.from(stateNameMap.values()),
             alphabet: alphabet,
             transitions: dTran,
             startState: 'S0',
             finalStates: finalStates,
+            stateSets: stateSets,
         };
     }
 }

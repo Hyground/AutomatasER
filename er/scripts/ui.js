@@ -110,26 +110,87 @@ function dibujarTablaFollowpos(table, positionsToChars) {
 function dibujarAFD(dfa) {
     const nodes = dfa.states.map(state => {
         const isFinal = dfa.finalStates.includes(state);
-        const isStart = state === dfa.startState;
+        const hasSets = dfa.stateSets && Object.prototype.hasOwnProperty.call(dfa.stateSets, state);
+        const setArr = hasSets ? dfa.stateSets[state] : null;
+        const label = Array.isArray(setArr) ? (setArr.length ? `{${setArr.join(',')}}` : '∅') : state;
         return {
             id: state,
-            label: state,
-            shape: isFinal ? 'doublecircle' : 'circle',
+            label,
+            shape: 'circle',
             color: {
-                border: isStart ? '#22c55e' : '#4b5563',
-                background: '#ffffff',
+                border: isFinal ? '#16a34a' : '#4b5563',
+                background: isFinal ? '#dcfce7' : '#ffffff',
             },
-            borderWidth: isStart ? 2.5 : 1.5,
+            borderWidth: 1.5,
         };
     });
 
-    const edges = dfa.transitions.map((t, i) => ({
-        id: `e${i}`,
-        from: t.from,
-        to: t.to,
-        label: t.label,
-        arrows: 'to'
-    }));
+    // Paralelas: no-self en aristas separadas; self-loops unificados
+    const grouped = new Map();
+    for (const t of dfa.transitions) {
+        const key = `${t.from}->${t.to}`;
+        if (!grouped.has(key)) grouped.set(key, { from: t.from, to: t.to, items: [] });
+        grouped.get(key).items.push(t);
+    }
+
+    const edges = [];
+    let edgeId = 0;
+    for (const g of grouped.values()) {
+        const isSelf = g.from === g.to;
+        if (isSelf) {
+            const label = Array.from(new Set(g.items.map(i => i.label))).sort().join(',');
+            edges.push({
+                id: `e${edgeId++}`,
+                from: g.from,
+                to: g.to,
+                label,
+                arrows: { to: { enabled: true, scaleFactor: 0.9 } },
+                width: 1.2,
+                smooth: { type: 'self', roundness: 0.5 },
+            });
+        } else {
+            const count = g.items.length;
+            g.items.forEach((t, idx) => {
+                const type = (idx % 2 === 0) ? 'curvedCW' : 'curvedCCW';
+                const k = Math.floor(idx / 2);
+                const roundness = 0.22 + k * 0.08;
+                edges.push({
+                    id: `e${edgeId++}`,
+                    from: t.from,
+                    to: t.to,
+                    label: t.label,
+                    arrows: { to: { enabled: true, scaleFactor: 0.9 } },
+                    width: 1.2,
+                    smooth: { type, roundness },
+                });
+            });
+        }
+    }
+
+    // Nodo de inicio ficticio para flecha de estado inicial
+    const startNodeId = '__START__';
+    nodes.push({
+        id: startNodeId,
+        label: '',
+        shape: 'circle',
+        size: 6,
+        color: { border: 'rgba(0,0,0,0)', background: 'rgba(0,0,0,0)' },
+        physics: true
+    });
+
+    // Arista hacia el estado inicial (flecha de entrada)
+    edges.unshift({
+        id: 'start-edge',
+        from: startNodeId,
+        to: dfa.startState,
+        label: '',
+        arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+        dashes: true,
+        smooth: false,
+        width: 1,
+        length: 25,
+        color: { color: '#4b5563' }
+    });
 
     const data = {
         nodes: new vis.DataSet(nodes),
@@ -143,16 +204,16 @@ function dibujarAFD(dfa) {
         physics: {
             solver: 'barnesHut',
             barnesHut: {
-                gravitationalConstant: -8000,
-                centralGravity: 0.1,
-                springLength: 150,
+                gravitationalConstant: -3000,
+                centralGravity: 0.3,
+                springLength: 80,
             },
         },
         edges: {
             smooth: {
                 type: 'cubicBezier',
                 forceDirection: 'horizontal',
-                roundness: 0.4
+                roundness: 0.25
             }
         }
     };
