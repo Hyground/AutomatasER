@@ -1,0 +1,44 @@
+body {
+    font-family: sans-serif;
+    margin: 2em;
+}
+
+#regex-input {
+    width: 300px;
+    padding: 5px;
+}
+
+#tree-container {
+    height: 500px;
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+}
+
+table {
+    border-collapse: collapse;
+    margin-top: 1em;
+    width: 300px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: center;
+}
+
+th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+#dfa-diagram {
+    height: 500px;
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+    margin-top: 1em;
+}

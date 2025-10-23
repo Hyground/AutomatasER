@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Expresiones Regulares - Método del Árbol</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="design/style.css">
+</head>
+<body>
+    <h1>Generador de Árbol de Sintaxis (AST)</h1>
+    <p>Introduce una expresión regular (usa '+' para unión, '*' para Kleene). Ej: (a+b)a</p>
+    <input type="text" id="regex-input" placeholder="Escribe una expresión...">
+    <button id="convert-btn">Generar Árbol</button>
+    
+    <h2>Árbol Visual:</h2>
+    <div id="tree-container"></div>
+    
+
+
+    <hr>
+    <h2>Tabla Followpos:</h2>
+    <div id="followpos-table"></div>
+
+    <hr>
+    <h2>AFD Resultante:</h2>
+    <div id="dfa-diagram"></div>
+
+    <script type="module" src="scripts/ui.js"></script>
+</body>
+</html>
