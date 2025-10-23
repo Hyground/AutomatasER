@@ -1,0 +1,37 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatas - AFN</title>
+    <link rel="stylesheet" href="design/page.css">
+    <link rel="stylesheet" href="design/ui.css">
+    <link rel="stylesheet" href="design/automata.css">
+    <!-- Vis.js Network CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/dist/vis-network.min.css">
+</head>
+<body>
+    <main>
+        <h1>Visual AFN</h1>
+        <div class="afn-controls">
+            <input type="text" id="afn-regex-input" placeholder="Introduce una expresión regular (ej: a+b)">
+            <button id="afn-convert-btn">Construir</button>
+        </div>
+        <div id="afn-visual"></div>
+    </main>
+
+    <!-- Vis.js Network JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/dist/vis-network.min.js"></script>
+    <!-- AFN Thompson logic is imported by the UI module -->
+    <script type="module" src="scripts/afn-ui.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
