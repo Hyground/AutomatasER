@@ -1,31 +1,54 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conversor de Expresiones Regulares - Método del Árbol</title>
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <title>Automatas</title>
     <link rel="stylesheet" href="design/style.css">
+    <!-- Vis.js Network CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/dist/vis-network.min.css">
 </head>
 <body>
-    <h1>Automatas</h1>
-    <p>Introduce una expresión regular (usa '+' para unión, '*' para Kleene). Ej: (a+b)a</p>
-    <input type="text" id="regex-input" placeholder="Escribe una expresión...">
-    <button id="convert-btn">Generar Árbol</button>
-    
-    <h2>Árbol Visual:</h2>
-    <div id="tree-container"></div>
-    
+    <header>
+        <nav>
+            <ul>
+                <li><a href="#" id="menu-afd">AFD</a></li>
+                <li><a href="#" id="menu-afn">AFN</a></li>
+                <li><a href="#" id="menu-validator">Validador de Caracteres</a></li>
+            </ul>
+        </nav>
+    </header>
 
+    <main>
+        <h1>Directo AFD</h1>
+        <div class="afd-controls">
+            <input type="text" id="regex-input" placeholder="Introduce una expresión regular">
+            <button id="convert-btn">Convertir a AFD</button>
+        </div>
+        <div class="visualization-grid">
+            <div>
+                <h2>Árbol de Análisis Sintáctico</h2>
+                <div id="tree-container"></div>
+            </div>
+            <div>
+                <h2>Tabla de Followpos</h2>
+                <div id="followpos-table"></div>
+            </div>
+            <div>
+                <h2>Diagrama del AFD</h2>
+                <div id="dfa-diagram"></div>
+            </div>
+        </div>
+    </main>
 
-    <hr>
-    <h2>Tabla Siguiente Posición:</h2>
-    <div id="followpos-table"></div>
+    <footer>
+        <p>&copy; 2023 Automatas y Lenguajes Formales</p>
+    </footer>
 
-    <hr>
-    <h2>AFD Resultante:</h2>
-    <div id="dfa-diagram"></div>
-
+    <!-- Vis.js Network JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/dist/vis-network.min.js"></script>
+    <script type="module" src="logic/directo-afd.js"></script>
+    <script type="module" src="logic/followpos.js"></script>
     <script type="module" src="scripts/ui.js"></script>
 </body>
 </html>
