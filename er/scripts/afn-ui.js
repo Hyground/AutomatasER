@@ -205,9 +205,9 @@ function dibujarVisualKleene(simbolo) {
     { from: '0', to: '1', label: EPS, smooth: false },
     { from: '1', to: '2', label: simbolo, smooth: false },
     { from: '2', to: '3', label: EPS, smooth: false },
-    // Aceptación del vacío desde el estado global de inicio (curva superior)
+    // Aceptación del vacío desde el estado global de inicio (curva inferior)
     { from: '0', to: '3', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.85 } },
-    // Loop de repetición: 2 —ε→ 1 (curva inferior)
+    // Loop de repetición: 2 —ε→ 1 (curva superior)
     { from: '2', to: '1', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } },
   ];
 
@@ -237,8 +237,8 @@ function dibujarVisualKleeneUnion(x, y) {
     { from: '5', to: '6', label: EPS, smooth: false },
     // Cierre Kleene sobre (x+y): vacío desde inicio global y repetición
     // Curvas al mismo lado para evitar enredos visuales
-    { from: '0', to: '7', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.85 } },
-    { from: '6', to: '1', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.55 } },
+    { from: '0', to: '7', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.85 } },
+    { from: '6', to: '1', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.55 } },
     // Salida global desde 6
     { from: '6', to: '7', label: EPS, smooth: false },
   ];
@@ -265,10 +265,10 @@ function dibujarVisualParenConcatKleene(x, y) {
     { from: '2', to: '3', label: EPS, smooth: false },
     { from: '3', to: '4', label: y, smooth: false },
     { from: '4', to: '5', label: EPS, smooth: false },
-    // Repetición: 5 —ε→ 1 (vuelta al inicio del bloque)
-    { from: '5', to: '1', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.55 } },
-    // Aceptación por vacío desde 0 hacia el aceptador (5)
-    { from: '0', to: '5', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.95 } },
+    // Repetición: 5 —ε→ 1 (vuelta al inicio del bloque) arriba
+    { from: '5', to: '1', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.55 } },
+    // Aceptación por vacío desde 0 hacia el aceptador (5) abajo
+    { from: '0', to: '5', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.95 } },
   ];
 
   drawVisual(nodes, edges);
@@ -327,6 +327,7 @@ function dibujarVisualConcatKleene(x, y) {
 function dibujarVisualKleeneAmbosLados(x, y) {
   const dx = POS.dxSimple;
   const nodes = [
+    { id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true },
     { id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true },
     { id: '2', label: '2', shape: 'circle', x: dx, y: 0, fixed: true },
     { id: '3', label: '3', shape: 'circle', x: 2*dx, y: 0, fixed: true },
@@ -335,13 +336,19 @@ function dibujarVisualKleeneAmbosLados(x, y) {
   ];
 
   const edges = [
-    { from: '1', to: '2', label: EPS, smooth: false },
-    { from: '2', to: '3', label: x, smooth: false },
-    // Loop sobre x (igual que a*)
-    { from: '3', to: '2', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } },
+    // Inicio global
+    { from: '0', to: '1', label: EPS, smooth: false },
+    // a*
+    { from: '1', to: '2', label: x, smooth: false },
+    { from: '2', to: '3', label: EPS, smooth: false },
+    // b*
     { from: '3', to: '4', label: y, smooth: false },
     { from: '4', to: '5', label: EPS, smooth: false },
-    // Loop sobre y (igual que b*)
+    // a* skip y loop (una arriba y otra abajo)
+    { from: '1', to: '3', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } },
+    { from: '2', to: '1', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } },
+    // b* skip y loop
+    { from: '3', to: '5', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } },
     { from: '4', to: '3', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } },
   ];
 
@@ -475,8 +482,8 @@ function dibujarVisualDesdePatron(pattern) {
       nodes.push({ id: acceptId, label: acceptId, shape: 'circle', x: (2 * tokens.length + 1) * (dx / 1), y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
       // Conexiones ε a aceptación y loop
       edges.push({ from: String(currentFromId), to: acceptId, label: EPS, smooth: false });
-      edges.push({ from: '0', to: acceptId, label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.95 } });
-      edges.push({ from: String(currentFromId), to: '1', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.55 } });
+      edges.push({ from: '0', to: acceptId, label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.95 } });
+      edges.push({ from: String(currentFromId), to: '1', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.55 } });
       return drawVisual(nodes, edges);
     }
   }
