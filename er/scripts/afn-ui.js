@@ -88,29 +88,40 @@ function dibujarVisualUnionSecuencias(tokensLeft, tokensRight) {
   const nodes = [];
   const edges = [];
 
-  // Nodo inicial y arranques de ramas
+  // Nodo global y arranque común
+  nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
   nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
   nodes.push({ id: '2', label: '2', shape: 'circle', x: dx, y: -dy, fixed: true });
   nodes.push({ id: '3', label: '3', shape: 'circle', x: dx, y: dy, fixed: true });
+  edges.push({ from: '0', to: '1', label: EPS, smooth: false });
   edges.push({ from: '1', to: '2', label: EPS, smooth: false });
   edges.push({ from: '1', to: '3', label: EPS, smooth: false });
 
   let nextId = 4;
 
-  function buildBranch(startId, y, tokens, startIndex) {
-    let currentId = startId;
-    let xPos = dx * 2; // siguiente columna después del start
+  function buildBranch(startId, y, tokens) {
+    let currentFrom = startId; // nodo epsilon previo
+    // la x base para la primera columna después del bifurcador
+    let xPos = dx * 2;
     for (let i = 0; i < tokens.length; i++) {
-      const toId = String(nextId++);
-      nodes.push({ id: toId, label: toId, shape: 'circle', x: xPos, y, fixed: true });
-      edges.push({ from: String(currentId), to: toId, label: tokens[i].sym, smooth: false });
-      if (tokens[i].star) {
-        edges.push({ from: toId, to: String(currentId), label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+      const { sym, star } = tokens[i];
+      const symId = String(nextId++);
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: xPos, y, fixed: true });
+      edges.push({ from: String(currentFrom), to: symId, label: sym, smooth: false });
+      const epsId = String(nextId++);
+      nodes.push({ id: epsId, label: epsId, shape: 'circle', x: xPos + dx, y, fixed: true });
+      edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
+      if (star) {
+        // skip (arriba/abajo según lado) y loop
+        const typeSkip = (y < 0) ? 'curvedCW' : 'curvedCW';
+        const typeLoop = (y < 0) ? 'curvedCCW' : 'curvedCCW';
+        edges.push({ from: String(currentFrom), to: epsId, label: EPS, smooth: { enabled: true, type: typeSkip, roundness: 0.6 } });
+        edges.push({ from: symId, to: String(currentFrom), label: EPS, smooth: { enabled: true, type: typeLoop, roundness: 0.6 } });
       }
-      currentId = Number(toId);
-      xPos += dx;
+      currentFrom = Number(epsId);
+      xPos += 2 * dx;
     }
-    return { endId: currentId, lastX: xPos - dx };
+    return { endEps: currentFrom, lastX: xPos - dx };
   }
 
   const left = buildBranch(2, -dy, tokensLeft);
@@ -121,8 +132,8 @@ function dibujarVisualUnionSecuencias(tokensLeft, tokensRight) {
   const finalId = String(nextId++);
   nodes.push({ id: finalId, label: finalId, shape: 'circle', x: finalX, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
 
-  edges.push({ from: String(left.endId), to: finalId, label: EPS, smooth: false });
-  edges.push({ from: String(right.endId), to: finalId, label: EPS, smooth: false });
+  edges.push({ from: String(left.endEps), to: finalId, label: EPS, smooth: false });
+  edges.push({ from: String(right.endEps), to: finalId, label: EPS, smooth: false });
 
   drawVisual(nodes, edges);
 }
