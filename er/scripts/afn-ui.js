@@ -138,6 +138,133 @@ function dibujarVisualUnionSecuencias(tokensLeft, tokensRight) {
   drawVisual(nodes, edges);
 }
 
+// Unión general de múltiples ramas (tres o más), cada una como secuencia de símbolos con * opcional
+// Ej.: a+b+c, ab+cd*+e*f, etc.
+function dibujarVisualUnionMultiple(branchesTokens) {
+  const dx = POS.dxUnion, dy = POS.dyUnion;
+  const nodes = [];
+  const edges = [];
+
+  // Nodo global 0 y nodo de inicio 1
+  nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
+  nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
+  edges.push({ from: '0', to: '1', label: EPS, smooth: false });
+
+  // Crear un nodo de bifurcación por rama
+  let nextId = 2;
+  const branchStartIds = [];
+  const n = branchesTokens.length;
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy; // distribuir verticalmente
+    const startId = String(nextId++);
+    branchStartIds.push({ id: startId, y });
+    nodes.push({ id: startId, label: startId, shape: 'circle', x: dx, y, fixed: true });
+    edges.push({ from: '1', to: startId, label: EPS, smooth: false });
+  }
+
+  function buildBranch(startId, y, tokens) {
+    let currentFrom = startId;
+    let xPos = 2 * dx;
+    for (let i = 0; i < tokens.length; i++) {
+      const { sym, star } = tokens[i];
+      const symId = String(nextId++);
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: xPos, y, fixed: true });
+      edges.push({ from: String(currentFrom), to: symId, label: sym, smooth: false });
+      const epsId = String(nextId++);
+      nodes.push({ id: epsId, label: epsId, shape: 'circle', x: xPos + dx, y, fixed: true });
+      edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
+      if (star) {
+        edges.push({ from: String(currentFrom), to: epsId, label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+        edges.push({ from: symId, to: String(currentFrom), label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+      }
+      currentFrom = Number(epsId);
+      xPos += 2 * dx;
+    }
+    return { endEps: currentFrom, lastX: xPos - dx };
+  }
+
+  const ends = [];
+  for (let i = 0; i < n; i++) {
+    const { id, y } = branchStartIds[i];
+    const result = buildBranch(id, y, branchesTokens[i]);
+    ends.push(result);
+  }
+
+  // Nodo de aceptación común al final de la rama más larga
+  const finalX = Math.max(...ends.map(e => e.lastX)) + dx;
+  const finalId = String(nextId++);
+  nodes.push({ id: finalId, label: finalId, shape: 'circle', x: finalX, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+  for (const e of ends) edges.push({ from: String(e.endEps), to: finalId, label: EPS, smooth: false });
+
+  drawVisual(nodes, edges);
+}
+
+// Unión entre dos secuencias donde cada lado puede tener Cierre de Kleene aplicado al bloque completo
+// Ej.: (ab)* + b, a + (bc)*, (ab)* + (cd)*
+function dibujarVisualUnionSecuenciasConKleene(tokensLeft, tokensRight, leftWholeStar = false, rightWholeStar = false) {
+  const dx = POS.dxUnion, dy = POS.dyUnion;
+  const nodes = [];
+  const edges = [];
+
+  // Nodo global y bifurcación
+  nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
+  nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
+  nodes.push({ id: '2', label: '2', shape: 'circle', x: dx, y: -dy, fixed: true });
+  nodes.push({ id: '3', label: '3', shape: 'circle', x: dx, y: dy, fixed: true });
+  edges.push({ from: '0', to: '1', label: EPS, smooth: false });
+  edges.push({ from: '1', to: '2', label: EPS, smooth: false });
+  edges.push({ from: '1', to: '3', label: EPS, smooth: false });
+
+  let nextId = 4;
+
+  function buildBranch(startId, y, tokens) {
+    let currentFrom = startId;
+    let xPos = dx * 2;
+    for (let i = 0; i < tokens.length; i++) {
+      const { sym, star } = tokens[i];
+      const symId = String(nextId++);
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: xPos, y, fixed: true });
+      edges.push({ from: String(currentFrom), to: symId, label: sym, smooth: false });
+      const epsId = String(nextId++);
+      nodes.push({ id: epsId, label: epsId, shape: 'circle', x: xPos + dx, y, fixed: true });
+      edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
+      if (star) {
+        const typeSkip = 'curvedCW';
+        const typeLoop = 'curvedCCW';
+        edges.push({ from: String(currentFrom), to: epsId, label: EPS, smooth: { enabled: true, type: typeSkip, roundness: 0.6 } });
+        edges.push({ from: symId, to: String(currentFrom), label: EPS, smooth: { enabled: true, type: typeLoop, roundness: 0.6 } });
+      }
+      currentFrom = Number(epsId);
+      xPos += 2 * dx;
+    }
+    return { endEps: currentFrom, lastX: xPos - dx };
+  }
+
+  const left = buildBranch(2, -dy, tokensLeft);
+  const right = buildBranch(3, dy, tokensRight);
+
+  // Nodo de aceptación después de la rama más larga
+  const finalX = Math.max(left.lastX, right.lastX) + dx;
+  const finalId = String(nextId++);
+  nodes.push({ id: finalId, label: finalId, shape: 'circle', x: finalX, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+
+  // Epsilon hacia aceptación desde los finales de cada rama
+  edges.push({ from: String(left.endEps), to: finalId, label: EPS, smooth: false });
+  edges.push({ from: String(right.endEps), to: finalId, label: EPS, smooth: false });
+
+  // Si la rama completa es Kleene, añadir skip y loop de bloque completo
+  if (leftWholeStar) {
+    edges.push({ from: '2', to: String(left.endEps), label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
+    edges.push({ from: String(left.endEps), to: '2', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.65 } });
+  }
+  if (rightWholeStar) {
+    edges.push({ from: '3', to: String(right.endEps), label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
+    edges.push({ from: String(right.endEps), to: '3', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.65 } });
+  }
+
+  drawVisual(nodes, edges);
+}
+
 // Unión básica (x+y) con una cola de secuencia concatenada al final, p. ej. a+bc
 function dibujarVisualUnionConCola(x, y, tailTokens) {
   const dxU = POS.dxUnion, dy = POS.dyUnion, dx = POS.dxSimple;
@@ -435,11 +562,21 @@ function dibujarVisualSecuencia(tokens) {
 function dibujarVisualDesdePatron(pattern) {
   const p = (pattern || '').trim();
   const mUnion = /^([a-zA-Z])\s*(\*)?\s*\+\s*([a-zA-Z])\s*(\*)?$/.exec(p);
+  // Soportar unión parentizada simple: (a+b), con * opcional en cada lado
+  const mParenUnion = /^\(\s*([a-zA-Z])\s*(\*)?\s*\+\s*([a-zA-Z])\s*(\*)?\s*\)$/.exec(p);
+  // Unión de secuencias con paréntesis opcionales alrededor de cada lado: (ab)+b, a+(bc*), (ab)+(cd*)
+  const mUnionSeqOptParen = /^\s*\(?\s*((?:[a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)\s*\)?\s*\+\s*\(?\s*((?:[a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)\s*\)?\s*$/.exec(p);
   const mUnionSeq = /^\s*(([a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)\s*\+\s*((?:[a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)\s*$/.exec(p);
+  // Cadena de uniones con 3+ términos sin paréntesis: a+b+c, ab+cd*+e
+  const isUnionChain = !/[()]/.test(p) && /\+/.test(p) && (p.split('+').length >= 3) && /^\s*(?:[a-zA-Z]\*?(?:\s*\.?\s*[a-zA-Z]\*?)*)(?:\s*\+\s*(?:[a-zA-Z]\*?(?:\s*\.?\s*[a-zA-Z]\*?)*))+\s*$/.test(p);
   const mUnionWithTail = /^\s*([a-zA-Z])\s*\+\s*([a-zA-Z])\s*((?:\s*\.?\s*[a-zA-Z]\*?\s*)+)\s*$/.exec(p);
   const mParenKleene = /^\(\s*([a-zA-Z])\s*\+\s*([a-zA-Z])\s*\)\s*\*$/.exec(p);
   const mParenConcatKleene = /^\(\s*([a-zA-Z])\s*\.?\s*([a-zA-Z])\s*\)\s*\*$/.exec(p);
   const isParenSeqKleene = /^\(\s*(?:[a-zA-Z]\*?\s*\.?\s*)+\)\s*\*$/.test(p);
+  // (secuencia)* + secuencia   o   secuencia + (secuencia)*
+  const mUnionParenSeqKleeneLeft = /^\(\s*(([a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)\s*\)\s*\*\s*\+\s*((?:[a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)$/.exec(p);
+  const mUnionParenSeqKleeneRight = /^((?:[a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)\s*\+\s*\(\s*(([a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)\s*\)\s*\*$/.exec(p);
+  const mUnionParenSeqKleeneBoth = /^\(\s*(([a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)\s*\)\s*\*\s*\+\s*\(\s*(([a-zA-Z]\*?)(?:\s*\.?\s*[a-zA-Z]\*?)*)\s*\)\s*\*$/.exec(p);
   const mKleeneConcat = /^([a-zA-Z])\*\s*\.?\s*([a-zA-Z])$/.exec(p);
   const mConcatKleene = /^([a-zA-Z])\s*\.?\s*([a-zA-Z])\*$/.exec(p);
   const mKleeneBothSides = /^([a-zA-Z])\*\s*\.?\s*([a-zA-Z])\*$/.exec(p);
@@ -500,6 +637,15 @@ function dibujarVisualDesdePatron(pattern) {
   }
 
   // Unión simple (x+y) primero para casos básicos como a+b
+  // También aceptar la variante parentizada equivalente: (x+y)
+  if (mParenUnion) {
+    const x = mParenUnion[1];
+    const leftStar = !!mParenUnion[2];
+    const y = mParenUnion[3];
+    const rightStar = !!mParenUnion[4];
+    return dibujarVisualUnion(x, y, leftStar, rightStar);
+  }
+
   if (mUnion) {
     const x = mUnion[1];
     const leftStar = !!mUnion[2];
@@ -508,7 +654,64 @@ function dibujarVisualDesdePatron(pattern) {
     return dibujarVisualUnion(x, y, leftStar, rightStar);
   }
 
+  // Unión general con paréntesis opcionales en cada lado, p. ej., (ab)+b, a+(bc*), (ab)+(cd*)
+  // Se evalúa después del caso base a+b para respetar el layout esperado de 0..7 en ese caso.
+  if (mUnionSeqOptParen) {
+    const leftStr = mUnionSeqOptParen[1];
+    const rightStr = mUnionSeqOptParen[2];
+    const tok = s => {
+      const out = [];
+      const re = /([a-zA-Z])(\*)?/g; let m;
+      while ((m = re.exec(s)) !== null) out.push({ sym: m[1], star: !!m[2] });
+      return out;
+    };
+    const tokensLeft = tok(leftStr);
+    const tokensRight = tok(rightStr);
+    if (tokensLeft.length >= 1 && tokensRight.length >= 1) return dibujarVisualUnionSecuencias(tokensLeft, tokensRight);
+  }
+
   // Unión general de secuencias (p. ej., a+bb, ab+cd*, etc.)
+  // Caso con Kleene aplicado al bloque completo en un lado: (ab)*+b o a+(bc)*
+  if (mUnionParenSeqKleeneLeft) {
+    const leftStr = mUnionParenSeqKleeneLeft[1];
+    const rightStr = mUnionParenSeqKleeneLeft[3];
+    const tok = s => {
+      const out = [];
+      const re = /([a-zA-Z])(\*)?/g; let m;
+      while ((m = re.exec(s)) !== null) out.push({ sym: m[1], star: !!m[2] });
+      return out;
+    };
+    const tokensLeft = tok(leftStr);
+    const tokensRight = tok(rightStr);
+    if (tokensLeft.length >= 1 && tokensRight.length >= 1) return dibujarVisualUnionSecuenciasConKleene(tokensLeft, tokensRight, true, false);
+  }
+  if (mUnionParenSeqKleeneBoth) {
+    const leftStr = mUnionParenSeqKleeneBoth[1];
+    const rightStr = mUnionParenSeqKleeneBoth[3];
+    const tok = s => {
+      const out = [];
+      const re = /([a-zA-Z])(\*)?/g; let m;
+      while ((m = re.exec(s)) !== null) out.push({ sym: m[1], star: !!m[2] });
+      return out;
+    };
+    const tokensLeft = tok(leftStr);
+    const tokensRight = tok(rightStr);
+    if (tokensLeft.length >= 1 && tokensRight.length >= 1) return dibujarVisualUnionSecuenciasConKleene(tokensLeft, tokensRight, true, true);
+  }
+  if (mUnionParenSeqKleeneRight) {
+    const leftStr = mUnionParenSeqKleeneRight[1];
+    const rightStr = mUnionParenSeqKleeneRight[2];
+    const tok = s => {
+      const out = [];
+      const re = /([a-zA-Z])(\*)?/g; let m;
+      while ((m = re.exec(s)) !== null) out.push({ sym: m[1], star: !!m[2] });
+      return out;
+    };
+    const tokensLeft = tok(leftStr);
+    const tokensRight = tok(rightStr);
+    if (tokensLeft.length >= 1 && tokensRight.length >= 1) return dibujarVisualUnionSecuenciasConKleene(tokensLeft, tokensRight, false, true);
+  }
+
   if (mUnionSeq && !/[()]/.test(p)) {
     const leftStr = mUnionSeq[1];
     const rightStr = mUnionSeq[3];
@@ -521,6 +724,19 @@ function dibujarVisualDesdePatron(pattern) {
     const tokensLeft = tok(leftStr);
     const tokensRight = tok(rightStr);
     if (tokensLeft.length >= 1 && tokensRight.length >= 1) return dibujarVisualUnionSecuencias(tokensLeft, tokensRight);
+  }
+
+  // Unión de 3 o más términos (sin paréntesis): a+b+c ...
+  if (isUnionChain) {
+    const parts = p.split('+');
+    const tok = s => {
+      const out = [];
+      const re = /([a-zA-Z])(\*)?/g; let m;
+      while ((m = re.exec(s)) !== null) out.push({ sym: m[1], star: !!m[2] });
+      return out;
+    };
+    const branches = parts.map(s => tok(s));
+    if (branches.every(b => b.length >= 1)) return dibujarVisualUnionMultiple(branches);
   }
 
   // Caso específico: (x+y) concatenado con cola (p. ej., a+bc ≡ (a+b)c)
