@@ -550,11 +550,8 @@ function dibujarVisualSecuencia(tokens) {
     currentFromId = Number(epsId);
   }
 
-  // Nodo de aceptación al final
-  const acceptId = String(nextId++);
-  const xAccept = (2 * tokens.length + 1) * dx;
-  nodes.push({ id: acceptId, label: acceptId, shape: 'circle', x: xAccept, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
-  edges.push({ from: String(currentFromId), to: acceptId, label: EPS, smooth: false });
+  // El último nodo `epsId` es el de aceptación.
+  nodes[nodes.length - 1].color = { border: '#16a34a', background: '#dcfce7' };
 
   drawVisual(nodes, edges);
 }
@@ -586,52 +583,60 @@ function dibujarVisualDesdePatron(pattern) {
   const mSimple = /^([a-zA-Z])$/.exec(p);
   const mSeq = /^(?:\s*[a-zA-Z]\*?\s*\.?\s*){3,}$/.exec(p); // 3 o más símbolos (deja casos de 1-2 a handlers previos)
 
-  // Priorizar caso específico (ab)* sobre el manejador general de (secuencia)*
-  if (mParenConcatKleene) {
-    const x = mParenConcatKleene[1];
-    const y = mParenConcatKleene[2];
-    return dibujarVisualParenConcatKleene(x, y);
-  }
-
   // (secuencia)*: generaliza (ab)* a cualquier longitud con regla unificada
-  // Regla: 0 ε 1, 1 t1 2, 2 ε 3, 3 t2 4, ..., (cada concatenación con ε intermedio), último ε A, 0 ε A, último ε 1
   if (isParenSeqKleene) {
     const inner = p.replace(/^\(\s*/, '').replace(/\s*\)\s*\*$/, '');
     const tokens = [];
-    const re = /([a-zA-Z])(\*)?/g;
+    const re = /([a-zA-Z])(\*|\+)?/g;
     let m;
-    while ((m = re.exec(inner)) !== null) tokens.push({ sym: m[1], star: !!m[2] });
+    while ((m = re.exec(inner)) !== null) tokens.push({ sym: m[1], star: m[2] === '*' });
     if (tokens.length >= 1) {
       const dx = POS.dxSimple;
       const nodes = [];
       const edges = [];
-      // 0, 1 fijos en -dx y 0
+      
+      // Nodo de inicio global
       nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
-      nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
-      edges.push({ from: '0', to: '1', label: EPS, smooth: false });
-      let currentFromId = 1;
-      let nextId = 2;
+      let currentFromId = 0;
+      let nextId = 1;
+
+      // Nodo de inicio de la secuencia
+      const seqStartId = String(nextId++);
+      nodes.push({ id: seqStartId, label: seqStartId, shape: 'circle', x: 0, y: 0, fixed: true });
+      edges.push({ from: String(currentFromId), to: seqStartId, label: EPS, smooth: false });
+      currentFromId = Number(seqStartId);
+
+      // Construir la secuencia
       for (let i = 0; i < tokens.length; i++) {
-        const { sym } = tokens[i];
-        // nodo para transición con símbolo
+        const { sym, star } = tokens[i];
         const symId = String(nextId++);
-        const xSym = (2 * i + 1) * (dx / 1); // mantener espaciado uniforme
+        const xSym = (1 + 2 * i) * dx;
         nodes.push({ id: symId, label: symId, shape: 'circle', x: xSym, y: 0, fixed: true });
         edges.push({ from: String(currentFromId), to: symId, label: sym, smooth: false });
-        // nodo intermedio epsilon entre concatenaciones (o previo a aceptación)
+        
         const epsId = String(nextId++);
-        const xEps = (2 * i + 2) * (dx / 1);
+        const xEps = (2 + 2 * i) * dx;
         nodes.push({ id: epsId, label: epsId, shape: 'circle', x: xEps, y: 0, fixed: true });
         edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
+        if (star) {
+          edges.push({ from: String(currentFromId), to: epsId, label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+          edges.push({ from: symId, to: String(currentFromId), label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        }
         currentFromId = Number(epsId);
       }
-      // Estado de aceptación A al final
-      const acceptId = String(nextId++);
-      nodes.push({ id: acceptId, label: acceptId, shape: 'circle', x: (2 * tokens.length + 1) * (dx / 1), y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
-      // Conexiones ε a aceptación y loop
-      edges.push({ from: String(currentFromId), to: acceptId, label: EPS, smooth: false });
-      edges.push({ from: '0', to: acceptId, label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.95 } });
-      edges.push({ from: String(currentFromId), to: '1', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.55 } });
+
+      // El último nodo `epsId` es el final de la secuencia
+      const seqEndId = String(currentFromId);
+      
+      // Marcar el nodo final como aceptación
+      nodes[nodes.length - 1].color = { border: '#16a34a', background: '#dcfce7' };
+
+      // Conexiones de Kleene
+      // Repetición: final de secuencia -> inicio de secuencia
+      edges.push({ from: seqEndId, to: seqStartId, label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.55 } });
+      // Aceptación por vacío: inicio global -> final de secuencia
+      edges.push({ from: '0', to: seqEndId, label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.95 } });
+
       return drawVisual(nodes, edges);
     }
   }
