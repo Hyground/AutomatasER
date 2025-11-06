@@ -1,5 +1,31 @@
 import { ConversorDirecto } from '../logic/directo-afd.js';
+// LÓGICA DE MODO OSCURO (Añadido)
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
+const body = document.body;
 
+// 1. Cargar preferencia guardada
+const savedTheme = localStorage.getItem('theme') || 'light';
+if (savedTheme === 'dark') {
+    body.classList.add('dark-mode');
+    themeToggleBtn.textContent = '☀️'; // Icono de sol para modo claro
+} else {
+    themeToggleBtn.textContent = '🌙'; // Icono de luna para modo oscuro
+}
+
+// 2. Manejar el click del botón
+themeToggleBtn?.addEventListener('click', () => {
+    body.classList.toggle('dark-mode');
+    const isDarkMode = body.classList.contains('dark-mode');
+    
+    // Guardar preferencia
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+
+    // Actualizar icono
+    themeToggleBtn.textContent = isDarkMode ? '☀️' : '🌙';
+
+    // Opcional: Forzar re-dibujo de los diagramas vis.js si están visibles
+    // Esto es complejo, pero al menos aplicamos un estilo base dinámico a los nodos.
+});
 const regexInput = document.getElementById('regex-input');
 const convertBtn = document.getElementById('convert-btn');
 const treeContainer = document.getElementById('tree-container');

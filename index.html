@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automatas</title>
+    <title>Automatas - AFD Directo</title>
+    <!-- CSS Moderno -->
     <link rel="stylesheet" href="design/page.css">
     <link rel="stylesheet" href="design/ui.css">
     <!-- Vis.js Network CSS -->
@@ -13,22 +14,24 @@
     <header>
         <nav>
             <ul>
-                <li><a href="index.html" id="menu-afd">AFD</a></li>
-                <li><a href="afn.html" id="menu-afn">AFN</a></li>
+                <li><a href="index.html" id="menu-afd" class="active">AFD Directo</a></li>
+                <li><a href="afn.html" id="menu-afn">AFN Thompson</a></li>
                 <li><a href="#" id="menu-validator">Validador de Caracteres</a></li>
             </ul>
         </nav>
+        <!-- Botón de Modo Oscuro/Claro -->
+        <button id="theme-toggle-btn" aria-label="Toggle dark mode">🌙</button>
     </header>
 
     <main>
-        <h1>Directo AFD</h1>
+        <h1>Conversión Directa de Expresión Regular a AFD</h1>
         <div class="afd-controls">
-            <input type="text" id="regex-input" placeholder="Introduce una expresión regular">
+            <input type="text" id="regex-input" placeholder="Introduce una expresión regular (ej: (a+b)*c)">
             <button id="convert-btn">Convertir a AFD</button>
         </div>
         <div class="visualization-grid">
             <div>
-                <h2>Árbol de Análisis Sintáctico</h2>
+                <h2>Árbol de Análisis Sintáctico (First/Last/Nullable)</h2>
                 <div id="tree-container"></div>
             </div>
             <div>
@@ -36,14 +39,14 @@
                 <div id="followpos-table"></div>
             </div>
             <div>
-                <h2>Diagrama del AFD</h2>
+                <h2>Diagrama del AFD Resultante</h2>
                 <div id="dfa-diagram"></div>
             </div>
         </div>
     </main>
 
     <footer>
-        <p>&copy; 2023 Automatas y Lenguajes Formales</p>
+        <p>&copy; 2023 Autómatas y Lenguajes Formales - Proyecto L/A</p>
     </footer>
 
     <!-- Vis.js Network JavaScript -->

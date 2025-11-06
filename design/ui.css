@@ -1,104 +1,140 @@
-/* ========================================================================== */
-/* AFD Controls (UI Component Styles)                                         */
-/* Styles for the input field and button for AFD conversion.                  */
-/* ========================================================================== */
+/*
+|==========================================================================
+| AFD CONTROLS
+|==========================================================================
+*/
 .afd-controls {
     display: flex;
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    flex-wrap: wrap;
     gap: 15px;
-    margin-bottom: 2em;
+    margin-bottom: 30px;
     align-items: center;
 }
 
 #regex-input {
     flex-grow: 1;
-    padding: 12px 15px;
-    border: 2px solid #ccc;
-    border-radius: 5px;
-    font-size: 1em;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    padding: 14px 20px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    font-size: 1.05em;
+    background-color: var(--color-background);
+    color: var(--color-text-default);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 }
 
 #regex-input:focus {
-    border-color: #3498db;
-    box-shadow: 0 0 8px rgba(52, 152, 219, 0.4);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.15), inset 0 1px 3px rgba(0, 0, 0, 0.1);
     outline: none;
+    background-color: var(--color-surface);
 }
 
 #convert-btn {
-    padding: 12px 25px;
-    background-color: #2ecc71; /* Green */
+    padding: 14px 35px;
+    background-image: linear-gradient(135deg, var(--color-secondary), #1e7e34); /* Gradiente */
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--border-radius);
     font-size: 1em;
+    font-weight: 700;
     cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.2s ease;
-    flex-shrink: 0; /* Prevent button from shrinking */
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    flex-shrink: 0;
 }
 
 #convert-btn:hover {
-    background-color: #27ae60; /* Darker green */
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(40, 167, 69, 0.6);
+    filter: brightness(1.1);
 }
-
 #convert-btn:active {
-    transform: translateY(0);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(40, 167, 69, 0.4);
 }
 
-/* ========================================================================== */
-/* Visualization Container Styles (UI Component Styles)                       */
-/* Styles for the individual containers holding the generated visualizations. */
-/* ========================================================================== */
+
+/*
+|==========================================================================
+| VISUALIZATION GRID & CONTAINERS
+|==========================================================================
+*/
+.visualization-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+@media (min-width: 768px) {
+    .visualization-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1024px) {
+    .visualization-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
 #tree-container,
 #followpos-table,
 #dfa-diagram {
-    border: 1px solid #e0e0e0;
-    background-color: #fdfdfd;
-    padding: 15px;
-    border-radius: 5px;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
-    min-height: 250px; /* Minimum height for all containers */
+    border: 1px solid var(--color-border);
+    background-color: var(--color-surface);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.03);
+    min-height: 400px;
+    transition: all 0.5s ease;
+    overflow: hidden; /* Importante para el contenedor de vis.js */
 }
 
 #tree-container,
 #dfa-diagram {
-    height: 60vh; /* Responsive height for vis.js containers */
-    overflow: auto; /* Allow scrolling if content overflows */
-    resize: vertical; /* Allow user to resize height */
+    height: 60vh;
+    overflow: auto;
+    resize: vertical;
 }
 
-/* Specific sizing for followpos-table if needed, or let grid handle it */
 #followpos-table {
-    overflow-x: auto; /* Allow horizontal scrolling for wide tables */
-    max-height: 60vh; /* Keep it within view */
+    overflow-x: auto;
+    max-height: 60vh;
 }
 
-/* ========================================================================== */
-/* Table Styles (UI Component Styles - Internal Automaton Style)              */
-/* Styles for the generated followpos table.                                  */
-/* ========================================================================== */
+
+/*
+|==========================================================================
+| TABLE STYLES (Followpos)
+|==========================================================================
+*/
 table {
-    border-collapse: collapse;
-    width: 100%; /* Make table responsive */
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    border-radius: 5px;
-    overflow: hidden; /* For rounded corners on table */
-    margin-top: 0; /* Already handled by parent div's margin-top */
+    border-collapse: separate; /* Separado para esquinas redondeadas */
+    border-spacing: 0;
+    width: 100%;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 th, td {
-    border: 1px solid #e0e0e0;
-    padding: 12px 15px;
-    text-align: left; /* Align text left for better readability */
+    border: none;
+    padding: 14px 20px;
+    text-align: left;
+    transition: background-color var(--transition-speed), color var(--transition-speed);
 }
 
 th {
-    background-color: #f0f0f0;
-    font-weight: bold;
-    color: #555;
+    background-color: var(--color-primary);
+    color: white;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.9em;
 }
 
-tr:nth-child(even) {
-    background-color: #f9f9f9;
+tr:nth-child(even) { background-color: rgba(0, 0, 0, 0.02); }
+body.dark-mode tr:nth-child(even) { background-color: rgba(255, 255, 255, 0.05); }
+
+tr:hover {
+    background-color: rgba(0, 123, 255, 0.05); /* Resaltar fila al pasar el mouse */
+    transform: scale(1.01);
+    transition: all 0.2s ease-out;
 }
+body.dark-mode tr:hover { background-color: rgba(106, 176, 255, 0.08); }

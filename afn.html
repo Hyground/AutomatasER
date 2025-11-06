@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automatas - AFN</title>
+    <title>Automatas - AFN Thompson</title>
+    <!-- CSS Moderno -->
     <link rel="stylesheet" href="design/page.css">
     <link rel="stylesheet" href="design/ui.css">
     <link rel="stylesheet" href="design/automata.css">
@@ -11,13 +12,29 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/dist/vis-network.min.css">
 </head>
 <body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="index.html" id="menu-afd">AFD Directo</a></li>
+                <li><a href="afn.html" id="menu-afn" class="active">AFN Thompson</a></li>
+                <li><a href="#" id="menu-validator">Validador de Caracteres</a></li>
+            </ul>
+        </nav>
+        <!-- Botón de Modo Oscuro/Claro -->
+        <button id="theme-toggle-btn" aria-label="Toggle dark mode">🌙</button>
+    </header>
     <main>
-        <h1>Visual AFN</h1>
+        <h1>Visualizador de AFN (Construcción de Thompson)</h1>
         <div class="afn-controls">
-            <input type="text" id="afn-regex-input" placeholder="Introduce una expresión regular (ej: a+b)">
-            <button id="afn-convert-btn">Construir</button>
+            <input type="text" id="afn-regex-input" placeholder="Introduce una expresión regular (ej: a+b o (a.b)*)">
+            <button id="afn-convert-btn">Construir AFN</button>
         </div>
-        <div id="afn-visual"></div>
+        <div id="afn-visual">
+            <div style="text-align:center; padding: 20px; color:var(--color-text-muted);">
+                Ingresa una expresión regular para ver la construcción de Thompson.
+            </div>
+        </div>
+        <h2 style="margin-top: 30px;">Tabla de Transiciones</h2>
         <div id="afn-table" style="margin-top:12px"></div>
     </main>
 
@@ -27,12 +44,3 @@
     <script type="module" src="scripts/afn-ui.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

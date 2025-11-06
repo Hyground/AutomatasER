@@ -1,3 +1,27 @@
+// LÓGICA DE MODO OSCURO (Añadido)
+const themeToggleBtn = document.getElementById('theme-toggle-btn');
+const body = document.body;
+
+// 1. Cargar preferencia guardada
+const savedTheme = localStorage.getItem('theme') || 'light';
+if (savedTheme === 'dark') {
+    body.classList.add('dark-mode');
+    themeToggleBtn.textContent = '☀️'; // Icono de sol para modo claro
+} else {
+    themeToggleBtn.textContent = '🌙'; // Icono de luna para modo oscuro
+}
+
+// 2. Manejar el click del botón
+themeToggleBtn?.addEventListener('click', () => {
+    body.classList.toggle('dark-mode');
+    const isDarkMode = body.classList.contains('dark-mode');
+    
+    // Guardar preferencia
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+
+    // Actualizar icono
+    themeToggleBtn.textContent = isDarkMode ? '☀️' : '🌙';
+});
 // UI para visual AFN (simple) en español con epsilon y curvas externas
 const regexInput = document.getElementById('afn-regex-input');
 const convertBtn = document.getElementById('afn-convert-btn');
@@ -12,13 +36,21 @@ const POS = { dxSimple: 120, dxUnion: 180, dyUnion: 70 };
 
 function drawVisual(nodes, edges) {
   if (!visualContainer) return;
+
+  const nodeColor = body.classList.contains('dark-mode') ? '#6ab0ff' : '#007bff';
+  const nodeBgColor = body.classList.contains('dark-mode') ? '#343434' : '#f0f0f0';
+  const finalBorderColor = body.classList.contains('dark-mode') ? '#4cd17a' : '#28a745';
+  const finalBgColor = body.classList.contains('dark-mode') ? '#2e4f4f' : '#e6ffe6';
+  const edgeColor = body.classList.contains('dark-mode') ? '#b0b0b0' : '#4b5563';
+  const fontColor = body.classList.contains('dark-mode') ? '#ffffff' : '#333333';
+
   // Fallback si vis-network no está disponible (por bloqueo CDN)
   try {
     if (typeof vis === 'undefined' || !vis || !vis.DataSet) {
       const nodesTxt = nodes.map(n => n.id).join(', ');
       const edgesTxt = edges.map(e => `${e.from} -${e.label}-> ${e.to}`).join('<br>');
       visualContainer.innerHTML = `
-        <div style="color:#444">
+        <div style="color:${fontColor}">
           <div><strong>vis-network no disponible</strong>. Mostrando fallback textual.</div>
           <div><strong>Nodos:</strong> ${nodesTxt}</div>
           <div><strong>Transiciones:</strong><br>${edgesTxt}</div>
@@ -26,21 +58,42 @@ function drawVisual(nodes, edges) {
       return;
     }
   } catch(_) {}
-  const data = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+  
+  // Aplicar estilos modernos a los nodos
+  const styledNodes = nodes.map(n => ({
+    ...n,
+    color: n.color && n.color.border === '#16a34a' 
+        ? { border: finalBorderColor, background: finalBgColor }
+        : { border: nodeColor, background: nodeBgColor },
+    font: { color: fontColor, face: 'Inter' },
+    borderWidth: 2,
+    shadow: true
+  }));
+
+  // Aplicar estilos modernos a las aristas
+  const styledEdges = edges.map(e => ({
+    ...e,
+    color: edgeColor,
+    width: 1.5,
+    font: { size: 14, color: edgeColor, background: body.classList.contains('dark-mode') ? '#1e1e1e' : '#ffffff', face: 'Inter' }
+  }));
+
+  const data = { nodes: new vis.DataSet(styledNodes), edges: new vis.DataSet(styledEdges) };
+  
   const options = {
     physics: false,
     edges: {
-      arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+      arrows: { to: { enabled: true, scaleFactor: 0.8 } },
       arrowStrikethrough: false,
       smooth: { enabled: true },
-      font: { face: 'Segoe UI Symbol, Arial Unicode MS, Noto Sans, Segoe UI, sans-serif' }
+      font: { face: 'Inter', size: 14 }
     },
-    nodes: { borderWidth: 1.5 }
+    nodes: { borderWidth: 2, font: { size: 14, face: 'Inter' } }
   };
   new vis.Network(visualContainer, data, options);
 
   if (tableContainer) {
-    let html = '<table><thead><tr><th>De</th><th>Etiqueta</th><th>A</th></tr></thead><tbody>';
+    let html = '<table class="afn-table"><thead><tr><th>De</th><th>Etiqueta</th><th>A</th></tr></thead><tbody>';
     for (const e of edges) html += `<tr><td>${e.from}</td><td>${e.label}</td><td>${e.to}</td></tr>`;
     html += '</tbody></table>';
     tableContainer.innerHTML = html;
