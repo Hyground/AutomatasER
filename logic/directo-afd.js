@@ -34,16 +34,20 @@ export class ConversorDirecto {
                 const isAlphabet = (c) => (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c === '#';
                 const needsConcatAfter = (c) => isAlphabet(c) || c === ')' || c === '*';
                 const needsConcatBefore = (c) => isAlphabet(c) || c === '(';
-                if (needsConcatAfter(current) && needsConcatBefore(next)) {
+                
+                // Agrega concatenación explícita ('.') solo si no es un operador de unión
+                if (needsConcatAfter(current) && needsConcatBefore(next) && current !== '+' && current !== '|') {
                     result += '.';
                 }
             }
         }
-        return result;
+        // Reemplaza '+' por '|' para tener un único operador de unión en el AST, si es necesario.
+        return result.replace(/\+/g, '|'); 
     }
 
     _construirAST(infix) {
-        const precedence = { '+': 1, '.': 2, '*': 3 };
+        // CORRECCIÓN: Se añade '|' con la misma precedencia que '+' (ahora solo se usa '|')
+        const precedence = { '|': 1, '.': 2, '*': 3 }; 
         const operators = [];
         const nodes = [];
 
@@ -55,6 +59,7 @@ export class ConversorDirecto {
             } else {
                 const right = nodes.pop();
                 const left = nodes.pop();
+                // Usa 'union' si el operador es '|'
                 nodes.push({ type: op === '.' ? 'concat' : 'union', left, right });
             }
         };
