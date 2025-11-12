@@ -320,6 +320,57 @@ function dibujarVisualUnionMultiple(branchesTokens) {
   drawVisual(nodes, edges);
 }
 
+// Unión múltiple con Kleene aplicado al bloque completo: (a+b+c+...)*
+function dibujarVisualUnionMultipleKleene(branchesTokens) {
+  const dx = POS.dxUnion, dy = POS.dyUnion;
+  const nodes = [];
+  const edges = [];
+
+  // Reutilizamos la estructura de dibujarVisualUnionMultiple para N>=2
+  if (!Array.isArray(branchesTokens) || branchesTokens.length < 2) return;
+  const n = branchesTokens.length;
+
+  // Nodos comunes 0 (global), 1 (inicio)
+  nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
+  nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
+  edges.push({ from: '0', to: '1', label: EPS, smooth: false });
+
+  // Bifurcación: 2..(n+1)
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    nodes.push({ id: startId, label: startId, shape: 'circle', x: dx, y, fixed: true });
+    edges.push({ from: '1', to: startId, label: EPS, smooth: false });
+  }
+
+  // Símbolos por rama: (2+n)..(2+2n-1)
+  const endpoints = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    const symId = String(2 + n + i);
+    const sym = branchesTokens[i][0].sym;
+    nodes.push({ id: symId, label: symId, shape: 'circle', x: 2 * dx, y, fixed: true });
+    edges.push({ from: startId, to: symId, label: sym, smooth: false });
+    endpoints[i] = symId;
+  }
+
+  // Join y aceptación del bloque
+  const joinId = String(2 + 2 * n);
+  const accId = String(2 + 2 * n + 1);
+  nodes.push({ id: joinId, label: joinId, shape: 'circle', x: 3 * dx, y: 0, fixed: true });
+  nodes.push({ id: accId, label: accId, shape: 'circle', x: 4 * dx, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+  for (let i = 0; i < n; i++) edges.push({ from: endpoints[i], to: joinId, label: EPS, smooth: false });
+  edges.push({ from: joinId, to: accId, label: EPS, smooth: false });
+
+  // Kleene sobre todo el bloque: aceptación por vacío (punteado) y repetición del bloque
+  edges.push({ from: '0', to: accId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.95 } });
+  // Repetición desde el join hacia el inicio del bloque (más abierta y destacada)
+  edges.push({ from: joinId, to: '1', label: EPS, color: '#ff1493', width: 2.2, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.88 } });
+
+  drawVisual(nodes, edges);
+}
+
 // Unión entre dos secuencias donde cada lado puede tener Cierre de Kleene aplicado al bloque completo
 // Ej.: (ab)* + b, a + (bc)*, (ab)* + (cd)*
 function dibujarVisualUnionSecuenciasConKleene(tokensLeft, tokensRight, leftWholeStar = false, rightWholeStar = false) {
@@ -689,6 +740,8 @@ function dibujarVisualDesdePatron(pattern) {
   const isUnionChain = !/[()]/.test(p) && /\+/.test(p) && (p.split('+').length >= 3) && /^\s*(?:[a-zA-Z]\*?(?:\s*\.?\s*[a-zA-Z]\*?)*)(?:\s*\+\s*(?:[a-zA-Z]\*?(?:\s*\.?\s*[a-zA-Z]\*?)*))+\s*$/.test(p);
   const mUnionWithTail = /^\s*([a-zA-Z])\s*\+\s*([a-zA-Z])\s*((?:\s*\.?\s*[a-zA-Z]\*?\s*)+)\s*$/.exec(p);
   const mParenKleene = /^\(\s*([a-zA-Z])\s*\+\s*([a-zA-Z])\s*\)\s*\*$/.exec(p);
+  // Kleene sobre cadena de uniones: (a+b+c+...)*
+  const mParenUnionChainK = /^\(\s*(?:[a-zA-Z]\*?\s*(?:\+\s*[a-zA-Z]\*?)+)\s*\)\s*\*$/.exec(p);
   const mParenConcatKleene = /^\(\s*([a-zA-Z])\s*\.?\s*([a-zA-Z])\s*\)\s*\*$/.exec(p);
   const isParenSeqKleene = /^\(\s*(?:[a-zA-Z]\*?\s*\.?\s*)+\)\s*\*$/.test(p);
   // (secuencia)* + secuencia   o   secuencia + (secuencia)*
@@ -920,6 +973,13 @@ function dibujarVisualDesdePatron(pattern) {
   }
   if (mKleene) {
     return dibujarVisualKleene(mKleene[1]);
+  }
+  // (a+b+c+...)* → aplicar split/join y añadir las dos epsilons del Kleene externo
+  if (mParenUnionChainK) {
+    const inner = p.replace(/^\(\s*/, '').replace(/\)\s*\*\s*$/, '');
+    const parts = inner.split('+').map(s => s.trim()).filter(Boolean);
+    const branches = parts.map(sym => [{ sym: sym.replace(/\s|\.|\*/g, ''), star: false }]);
+    if (branches.length >= 2) return dibujarVisualUnionMultipleKleene(branches);
   }
   if (mSimple) {
     return dibujarVisualSimple(mSimple[1]);
