@@ -1,0 +1,83 @@
+function dibujarVisualUnionMultipleConCola(branchesTokens, tailTokens) {
+  const dx = POS.dxUnion, dy = POS.dyUnion, dxS = POS.dxSimple;
+  const nodes = [];
+  const edges = [];
+  const n = branchesTokens.length;
+  if (!Array.isArray(branchesTokens) || n < 2) return;
+
+  // 0 y 1
+  nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
+  nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
+  edges.push({ from: '0', to: '1', label: EPS, smooth: false });
+
+  // Split: 1 -> 2..(n+1)
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    nodes.push({ id: startId, label: startId, shape: 'circle', x: dx, y, fixed: true });
+    edges.push({ from: '1', to: startId, label: EPS, smooth: false });
+  }
+
+  // Símbolos por rama: (2+n)..(2+2n-1)
+  const endpoints = new Array(n);
+  const pendingSkip = [];
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    const symId = String(2 + n + i);
+    const sym = branchesTokens[i][0].sym;
+    nodes.push({ id: symId, label: symId, shape: 'circle', x: 2 * dx, y, fixed: true });
+    edges.push({ from: startId, to: symId, label: sym, smooth: false });
+    if (branchesTokens[i][0].star) {
+      // loop (repetición)
+      edges.push({ from: symId, to: startId, label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+      // skip (cero repeticiones) se agrega tras crear el join
+      pendingSkip.push(startId);
+    }
+    endpoints[i] = symId;
+  }
+
+  // Join común
+  const joinId = String(2 + 2 * n);
+  nodes.push({ id: joinId, label: joinId, shape: 'circle', x: 3 * dx, y: 0, fixed: true });
+  for (let i = 0; i < n; i++) edges.push({ from: endpoints[i], to: joinId, label: EPS, smooth: false });
+  // agregar skips pendientes (cero repeticiones) hacia el join
+  for (const s of pendingSkip) {
+    edges.push({ from: s, to: joinId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+  }
+
+  // Cola: join —ε→ startTail —s1→ ε —s2→ ε ... —ε→ accept
+  let nextId = 2 + 2 * n + 1;
+  let currentFrom = joinId;
+  let lastSymId = null; let lastStar = false; let lastSkipFrom = null;
+  if (tailTokens.length > 0) {
+    const startTailId = String(nextId++);
+    const baseX = 3 * dx + 0;
+    nodes.push({ id: startTailId, label: startTailId, shape: 'circle', x: baseX, y: 0, fixed: true });
+    edges.push({ from: currentFrom, to: startTailId, label: EPS, smooth: false });
+    currentFrom = startTailId;
+
+    for (let i = 0; i < tailTokens.length; i++) {
+      const { sym, star } = tailTokens[i];
+      const symId = String(nextId++);
+      const xSym = baseX + (1 + 2 * i) * dxS;
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: xSym, y: 0, fixed: true });
+      edges.push({ from: currentFrom, to: symId, label: sym, smooth: false });
+      const epsId = String(nextId++);
+      nodes.push({ id: epsId, label: epsId, shape: 'circle', x: baseX + (2 + 2 * i) * dxS, y: 0, fixed: true });
+      edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
+      if (star) {
+        // skip punteado y loop curvo coloreado
+        const col = loopColor(i);
+        edges.push({ from: currentFrom, to: epsId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+        edges.push({ from: symId, to: currentFrom, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+      }
+      currentFrom = epsId;
+    }
+  }
+  const acceptId = String(nextId++);
+  nodes.push({ id: acceptId, label: acceptId, shape: 'circle', x: (3 * dx) + (2 * tailTokens.length + 1) * dxS, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+  edges.push({ from: currentFrom, to: acceptId, label: EPS, smooth: false });
+
+  drawVisual(nodes, edges);
+}

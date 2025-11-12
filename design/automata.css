@@ -67,7 +67,7 @@
   transition: all 0.5s ease;
 }
 
-#afn-visual { height: 60vh; overflow: hidden; resize: vertical; }
+#afn-visual { height: 60vh; overflow: auto; resize: vertical; }
 
 #afn-table { max-height: 60vh; overflow: auto; }
 
