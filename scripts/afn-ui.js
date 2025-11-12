@@ -33,6 +33,9 @@ const EPS = String.fromCharCode(949);
 // Layout compacto y consistente para todos los casos
 // Layout por defecto (original)
 const POS = { dxSimple: 120, dxUnion: 180, dyUnion: 70 };
+// Paleta de colores para loops/skip (ramas con estrella) y helper
+const LOOP_COLORS = ['#e63946', '#ff7f0e', '#2ca02c', '#17becf', '#d62728', '#9467bd', '#bcbd22', '#8c564b', '#1f77b4', '#ff1493'];
+const loopColor = (idx) => LOOP_COLORS[idx % LOOP_COLORS.length];
 
 function drawVisual(nodes, edges) {
   if (!visualContainer) return;
@@ -70,10 +73,10 @@ function drawVisual(nodes, edges) {
     shadow: true
   }));
 
-  // Aplicar estilos modernos a las aristas
+  // Aplicar estilos modernos a las aristas (respetar color por arista si viene definido)
   const styledEdges = edges.map(e => ({
     ...e,
-    color: edgeColor,
+    color: e.color || edgeColor,
     width: 1.5,
     font: { size: 14, color: edgeColor, background: body.classList.contains('dark-mode') ? '#1e1e1e' : '#ffffff', face: 'Inter' }
   }));
@@ -126,10 +129,14 @@ function dibujarVisualUnion(x, y, leftStar = false, rightStar = false) {
 
   // Loops de Kleene curvados si aplica en cada rama
   if (leftStar) {
-    edges.push({ from: '4', to: '2', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.65 } });
+    edges.push({ from: '4', to: '2', label: EPS, color: loopColor(0), smooth: { enabled: true, type: 'curvedCCW', roundness: 0.65 } });
+    // skip para cero repeticiones (curvo): 2 —ε→ 6
+    edges.push({ from: '2', to: '6', label: EPS, color: loopColor(0), dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
   }
   if (rightStar) {
-    edges.push({ from: '5', to: '3', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
+    edges.push({ from: '5', to: '3', label: EPS, color: loopColor(1), smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
+    // skip para cero repeticiones (curvo): 3 —ε→ 6
+    edges.push({ from: '3', to: '6', label: EPS, color: loopColor(1), dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
   }
 
   drawVisual(nodes, edges);
@@ -197,6 +204,67 @@ function dibujarVisualUnionMultiple(branchesTokens) {
   const dx = POS.dxUnion, dy = POS.dyUnion;
   const nodes = [];
   const edges = [];
+
+  // Caso general solicitado: a+b+c+... con N>=3 ramas; cada rama es un solo símbolo, con o sin Kleene.
+  // Estructura mínima: 0 k 1; 1 k (2..n+1); (2+i) sym_i (2+n+i); (2+n+i) k (2+2n); (2+2n) k (2+2n+1)
+  if (
+    Array.isArray(branchesTokens) &&
+    branchesTokens.length >= 3 &&
+    branchesTokens.every(b => Array.isArray(b) && b.length === 1 && typeof b[0].sym === 'string' && b[0].sym.length === 1)
+  ) {
+    const n = branchesTokens.length;
+    // Nodos comunes 0 (global), 1 (inicio)
+    nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
+    nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
+    edges.push({ from: '0', to: '1', label: EPS, smooth: false });
+
+    // Nodos de bifurcación por rama: 2..(n+1)
+    for (let i = 0; i < n; i++) {
+      const y = (i - (n - 1) / 2) * dy;
+      const startId = String(2 + i);
+      nodes.push({ id: startId, label: startId, shape: 'circle', x: dx, y, fixed: true });
+      edges.push({ from: '1', to: startId, label: EPS, smooth: false });
+    }
+
+    // Nodos de símbolo por rama: (2+n)..(2+2n-1)
+    const endpoints = new Array(n);  // a qué nodo conecta cada rama hacia el join
+    const pendingSkip = []; // para ramas con *: añadir skip start->join después
+    for (let i = 0; i < n; i++) {
+      const y = (i - (n - 1) / 2) * dy;
+      const startId = String(2 + i);
+      const symRaw = branchesTokens[i][0].sym;
+      const star = !!branchesTokens[i][0].star;
+
+      const symId = String(2 + n + i);
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: 2 * dx, y, fixed: true });
+      edges.push({ from: startId, to: symId, label: symRaw, smooth: false });
+      endpoints[i] = symId;
+      if (star) {
+        // loop: símbolo -> startId (curvo y con color por rama)
+        edges.push({ from: symId, to: startId, label: EPS, color: loopColor(i), smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        // skip se añade tras crear el joinId (curvo y dashes)
+        pendingSkip.push({ startId, color: loopColor(i) });
+      }
+    }
+
+    // Nodo de unión común y aceptación
+    const joinId = String(2 + 2 * n);
+    const accId = String(2 + 2 * n + 1);
+    nodes.push({ id: joinId, label: joinId, shape: 'circle', x: 3 * dx, y: 0, fixed: true });
+    nodes.push({ id: accId, label: accId, shape: 'circle', x: 4 * dx, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+
+    // Enlace de cada endpoint al join; añadir skips pendientes para ramas con *
+    for (let i = 0; i < n; i++) {
+      edges.push({ from: endpoints[i], to: joinId, label: EPS, smooth: false });
+    }
+    for (const s of pendingSkip) {
+      edges.push({ from: s.startId, to: joinId, label: EPS, color: s.color, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+    }
+    edges.push({ from: joinId, to: accId, label: EPS, smooth: false });
+
+    drawVisual(nodes, edges);
+    return;
+  }
 
   // Nodo global 0 y nodo de inicio 1
   nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
