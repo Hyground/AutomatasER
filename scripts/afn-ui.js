@@ -23,6 +23,8 @@ themeToggleBtn?.addEventListener('click', () => {
     themeToggleBtn.textContent = isDarkMode ? '☀️' : '🌙';
 });
 // UI para visual AFN (simple) en español con epsilon y curvas externas
+const FORCE_GENERIC = false; // Modo estable: dibujar siempre con Thompson
+import { construirAFNDesdeRegex } from '../logic/afn-thompson.js';
 const regexInput = document.getElementById('afn-regex-input');
 const convertBtn = document.getElementById('afn-convert-btn');
 const visualContainer = document.getElementById('afn-visual');
@@ -33,6 +35,9 @@ const EPS = String.fromCharCode(949);
 // Layout compacto y consistente para todos los casos
 // Layout por defecto (original)
 const POS = { dxSimple: 120, dxUnion: 180, dyUnion: 70 };
+// Paleta de colores para loops/skip (ramas con estrella) y helper
+const LOOP_COLORS = ['#e63946', '#ff7f0e', '#2ca02c', '#17becf', '#d62728', '#9467bd', '#bcbd22', '#8c564b', '#1f77b4', '#ff1493'];
+const loopColor = (idx) => LOOP_COLORS[idx % LOOP_COLORS.length];
 
 function drawVisual(nodes, edges) {
   if (!visualContainer) return;
@@ -70,13 +75,20 @@ function drawVisual(nodes, edges) {
     shadow: true
   }));
 
-  // Aplicar estilos modernos a las aristas
-  const styledEdges = edges.map(e => ({
-    ...e,
-    color: edgeColor,
-    width: 1.5,
-    font: { size: 14, color: edgeColor, background: body.classList.contains('dark-mode') ? '#1e1e1e' : '#ffffff', face: 'Inter' }
-  }));
+  // Aplicar estilos modernos a las aristas (respetar color por arista si viene definido)
+  const styledEdges = edges.map(e => {
+    const isEps = e.label === EPS;
+    const baseFontBg = body.classList.contains('dark-mode') ? '#1e1e1e' : '#ffffff';
+    const symbolColor = '#ff6b00';
+    return {
+      ...e,
+      color: e.color || (isEps ? edgeColor : symbolColor),
+      width: isEps ? 1.5 : 2.2,
+      dashes: e.dashes || false,
+      arrows: { to: { enabled: true, scaleFactor: 0.9 } },
+      font: { size: 14, color: isEps ? edgeColor : symbolColor, background: baseFontBg, face: 'Inter' }
+    };
+  });
 
   const data = { nodes: new vis.DataSet(styledNodes), edges: new vis.DataSet(styledEdges) };
   
@@ -90,7 +102,8 @@ function drawVisual(nodes, edges) {
     },
     nodes: { borderWidth: 2, font: { size: 14, face: 'Inter' } }
   };
-  new vis.Network(visualContainer, data, options);
+  const network = new vis.Network(visualContainer, data, options);
+  try { network.fit({ animation: { duration: 0 } }); } catch(_) {}
 
   if (tableContainer) {
     let html = '<table class="afn-table"><thead><tr><th>De</th><th>Etiqueta</th><th>A</th></tr></thead><tbody>';
@@ -126,10 +139,14 @@ function dibujarVisualUnion(x, y, leftStar = false, rightStar = false) {
 
   // Loops de Kleene curvados si aplica en cada rama
   if (leftStar) {
-    edges.push({ from: '4', to: '2', label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.65 } });
+    edges.push({ from: '4', to: '2', label: EPS, color: loopColor(0), smooth: { enabled: true, type: 'curvedCCW', roundness: 0.65 } });
+    // skip para cero repeticiones (curvo): 2 —ε→ 6
+    edges.push({ from: '2', to: '6', label: EPS, color: loopColor(0), dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
   }
   if (rightStar) {
-    edges.push({ from: '5', to: '3', label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
+    edges.push({ from: '5', to: '3', label: EPS, color: loopColor(1), smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
+    // skip para cero repeticiones (curvo): 3 —ε→ 6
+    edges.push({ from: '3', to: '6', label: EPS, color: loopColor(1), dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.65 } });
   }
 
   drawVisual(nodes, edges);
@@ -198,6 +215,67 @@ function dibujarVisualUnionMultiple(branchesTokens) {
   const nodes = [];
   const edges = [];
 
+  // Caso general solicitado: a+b+c+... con N>=3 ramas; cada rama es un solo símbolo, con o sin Kleene.
+  // Estructura mínima: 0 k 1; 1 k (2..n+1); (2+i) sym_i (2+n+i); (2+n+i) k (2+2n); (2+2n) k (2+2n+1)
+  if (
+    Array.isArray(branchesTokens) &&
+    branchesTokens.length >= 3 &&
+    branchesTokens.every(b => Array.isArray(b) && b.length === 1 && typeof b[0].sym === 'string' && b[0].sym.length === 1)
+  ) {
+    const n = branchesTokens.length;
+    // Nodos comunes 0 (global), 1 (inicio)
+    nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
+    nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
+    edges.push({ from: '0', to: '1', label: EPS, smooth: false });
+
+    // Nodos de bifurcación por rama: 2..(n+1)
+    for (let i = 0; i < n; i++) {
+      const y = (i - (n - 1) / 2) * dy;
+      const startId = String(2 + i);
+      nodes.push({ id: startId, label: startId, shape: 'circle', x: dx, y, fixed: true });
+      edges.push({ from: '1', to: startId, label: EPS, smooth: false });
+    }
+
+    // Nodos de símbolo por rama: (2+n)..(2+2n-1)
+    const endpoints = new Array(n);  // a qué nodo conecta cada rama hacia el join
+    const pendingSkip = []; // para ramas con *: añadir skip start->join después
+    for (let i = 0; i < n; i++) {
+      const y = (i - (n - 1) / 2) * dy;
+      const startId = String(2 + i);
+      const symRaw = branchesTokens[i][0].sym;
+      const star = !!branchesTokens[i][0].star;
+
+      const symId = String(2 + n + i);
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: 2 * dx, y, fixed: true });
+      edges.push({ from: startId, to: symId, label: symRaw, smooth: false });
+      endpoints[i] = symId;
+      if (star) {
+        // loop: símbolo -> startId (curvo y con color por rama)
+        edges.push({ from: symId, to: startId, label: EPS, color: loopColor(i), smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        // skip se añade tras crear el joinId (curvo y dashes)
+        pendingSkip.push({ startId, color: loopColor(i) });
+      }
+    }
+
+    // Nodo de unión común y aceptación
+    const joinId = String(2 + 2 * n);
+    const accId = String(2 + 2 * n + 1);
+    nodes.push({ id: joinId, label: joinId, shape: 'circle', x: 3 * dx, y: 0, fixed: true });
+    nodes.push({ id: accId, label: accId, shape: 'circle', x: 4 * dx, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+
+    // Enlace de cada endpoint al join; añadir skips pendientes para ramas con *
+    for (let i = 0; i < n; i++) {
+      edges.push({ from: endpoints[i], to: joinId, label: EPS, smooth: false });
+    }
+    for (const s of pendingSkip) {
+      edges.push({ from: s.startId, to: joinId, label: EPS, color: s.color, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+    }
+    edges.push({ from: joinId, to: accId, label: EPS, smooth: false });
+
+    drawVisual(nodes, edges);
+    return;
+  }
+
   // Nodo global 0 y nodo de inicio 1
   nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
   nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
@@ -252,6 +330,316 @@ function dibujarVisualUnionMultiple(branchesTokens) {
   drawVisual(nodes, edges);
 }
 
+// Visual genérico con física para cualquier AFN (fallback usando Thompson)
+function drawVisualGeneric(nodes, edges) {
+  if (!visualContainer) return;
+
+  const nodeColor = body.classList.contains('dark-mode') ? '#6ab0ff' : '#007bff';
+  const nodeBgColor = body.classList.contains('dark-mode') ? '#343434' : '#f0f0f0';
+  const finalBorderColor = body.classList.contains('dark-mode') ? '#4cd17a' : '#28a745';
+  const finalBgColor = body.classList.contains('dark-mode') ? '#2e4f4f' : '#e6ffe6';
+  const edgeColor = body.classList.contains('dark-mode') ? '#b0b0b0' : '#4b5563';
+  const fontColor = body.classList.contains('dark-mode') ? '#ffffff' : '#333333';
+
+  try {
+    if (typeof vis === 'undefined' || !vis || !vis.DataSet) {
+      const nodesTxt = nodes.map(n => n.id).join(', ');
+      const edgesTxt = edges.map(e => `${e.from} -${e.label}-> ${e.to}`).join('<br>');
+      visualContainer.innerHTML = `
+        <div style="color:${fontColor}">
+          <div><strong>vis-network no disponible</strong>. Mostrando fallback textual.</div>
+          <div><strong>Nodos:</strong> ${nodesTxt}</div>
+          <div><strong>Transiciones:</strong><br>${edgesTxt}</div>
+        </div>`;
+      return;
+    }
+  } catch(_) {}
+
+  const styledNodes = nodes.map(n => ({
+    ...n,
+    color: n.color && n.color.border === '#16a34a'
+      ? { border: finalBorderColor, background: finalBgColor }
+      : { border: nodeColor, background: nodeBgColor },
+    font: { color: fontColor, face: 'Inter' },
+    borderWidth: 2,
+    shadow: true,
+    fixed: false
+  }));
+  const styledEdges = edges.map(e => ({
+    ...e,
+    color: e.color || edgeColor,
+    width: 1.6,
+    font: { size: 14, color: edgeColor, background: body.classList.contains('dark-mode') ? '#1e1e1e' : '#ffffff', face: 'Inter' },
+    arrows: { to: { enabled: true, scaleFactor: 0.9 } }
+  }));
+
+  const data = { nodes: new vis.DataSet(styledNodes), edges: new vis.DataSet(styledEdges) };
+  const options = {
+    physics: { enabled: true, solver: 'forceAtlas2Based', stabilization: true },
+    edges: { smooth: { enabled: true } },
+    nodes: { borderWidth: 2 }
+  };
+  const network = new vis.Network(visualContainer, data, options);
+  try { network.fit({ animation: { duration: 0 } }); } catch(_) {}
+
+  if (tableContainer) {
+    let html = '<table class="afn-table"><thead><tr><th>De</th><th>Etiqueta</th><th>A</th></tr></thead><tbody>';
+    for (const e of edges) html += `<tr><td>${e.from}</td><td>${e.label}</td><td>${e.to}</td></tr>`;
+    html += '</tbody></table>';
+    tableContainer.innerHTML = html;
+  }
+}
+
+// Unión múltiple con Kleene aplicado al bloque completo: (a+b+c+...)*
+function dibujarVisualUnionMultipleKleene(branchesTokens) {
+  const dx = POS.dxUnion, dy = POS.dyUnion;
+  const nodes = [];
+  const edges = [];
+
+  // Reutilizamos la estructura de dibujarVisualUnionMultiple para N>=2
+  if (!Array.isArray(branchesTokens) || branchesTokens.length < 2) return;
+  const n = branchesTokens.length;
+
+  // Nodos comunes 0 (global), 1 (inicio)
+  nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
+  nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
+  edges.push({ from: '0', to: '1', label: EPS, smooth: false });
+
+  // Bifurcación: 2..(n+1)
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    nodes.push({ id: startId, label: startId, shape: 'circle', x: dx, y, fixed: true });
+    edges.push({ from: '1', to: startId, label: EPS, smooth: false });
+  }
+
+  // Símbolos por rama: (2+n)..(2+2n-1)
+  const endpoints = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    const symId = String(2 + n + i);
+    const sym = branchesTokens[i][0].sym;
+    nodes.push({ id: symId, label: symId, shape: 'circle', x: 2 * dx, y, fixed: true });
+    edges.push({ from: startId, to: symId, label: sym, smooth: false });
+    endpoints[i] = symId;
+  }
+
+  // Join y aceptación del bloque
+  const joinId = String(2 + 2 * n);
+  const accId = String(2 + 2 * n + 1);
+  nodes.push({ id: joinId, label: joinId, shape: 'circle', x: 3 * dx, y: 0, fixed: true });
+  nodes.push({ id: accId, label: accId, shape: 'circle', x: 4 * dx, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+  for (let i = 0; i < n; i++) edges.push({ from: endpoints[i], to: joinId, label: EPS, smooth: false });
+  edges.push({ from: joinId, to: accId, label: EPS, smooth: false });
+
+  // Kleene sobre todo el bloque: aceptación por vacío (punteado) y repetición del bloque
+  edges.push({ from: '0', to: accId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.95 } });
+  // Repetición desde el join hacia el inicio del bloque (más abierta y destacada)
+  edges.push({ from: joinId, to: '1', label: EPS, color: '#ff1493', width: 2.2, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.88 } });
+
+  drawVisual(nodes, edges);
+}
+
+// Unión múltiple (2+ ramas) concatenada con una cola: (a+b+c+... ) tail
+function dibujarVisualUnionMultipleConCola(branchesTokens, tailTokens) {
+  const dx = POS.dxUnion, dy = POS.dyUnion, dxS = POS.dxSimple;
+  const nodes = [];
+  const edges = [];
+  const n = branchesTokens.length;
+  if (!Array.isArray(branchesTokens) || n < 2) return;
+
+  // 0 y 1
+  nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
+  nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
+  edges.push({ from: '0', to: '1', label: EPS, smooth: false });
+
+  // Split: 1 -> 2..(n+1)
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    nodes.push({ id: startId, label: startId, shape: 'circle', x: dx, y, fixed: true });
+    edges.push({ from: '1', to: startId, label: EPS, smooth: false });
+  }
+
+  // Símbolos por rama: (2+n)..(2+2n-1)
+  const endpoints = new Array(n);
+  const pendingSkip = [];
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    const symId = String(2 + n + i);
+    const sym = branchesTokens[i][0].sym;
+    nodes.push({ id: symId, label: symId, shape: 'circle', x: 2 * dx, y, fixed: true });
+    edges.push({ from: startId, to: symId, label: sym, smooth: false });
+    if (branchesTokens[i][0].star) {
+      // loop (repetición)
+      edges.push({ from: symId, to: startId, label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+      // skip (cero repeticiones) se agrega tras crear el join
+      pendingSkip.push(startId);
+    }
+    endpoints[i] = symId;
+  }
+
+  // Join común
+  const joinId = String(2 + 2 * n);
+  nodes.push({ id: joinId, label: joinId, shape: 'circle', x: 3 * dx, y: 0, fixed: true });
+  for (let i = 0; i < n; i++) edges.push({ from: endpoints[i], to: joinId, label: EPS, smooth: false });
+  // agregar skips pendientes (cero repeticiones) hacia el join
+  for (const s of pendingSkip) {
+    edges.push({ from: s, to: joinId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+  }
+
+  // Cola: join —ε→ startTail —s1→ ε —s2→ ε ... —ε→ accept (sin ε extra al final)
+  let nextId = 2 + 2 * n + 1;
+  let currentFrom = joinId;
+  let lastSymId = null; let lastStar = false; let lastSkipFrom = null;
+  if (tailTokens.length > 0) {
+    const startTailId = String(nextId++);
+    const baseX = 3 * dx + dxS; // evitar solape con el join
+    nodes.push({ id: startTailId, label: startTailId, shape: 'circle', x: baseX, y: 0, fixed: true });
+    edges.push({ from: currentFrom, to: startTailId, label: EPS, smooth: false });
+    currentFrom = startTailId;
+
+    for (let i = 0; i < tailTokens.length; i++) {
+      const { sym, star } = tailTokens[i];
+      const symId = String(nextId++);
+      const xSym = baseX + (1 + 2 * i) * dxS;
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: xSym, y: 0, fixed: true });
+      edges.push({ from: currentFrom, to: symId, label: sym, smooth: false });
+      const isLast = (i === tailTokens.length - 1);
+      if (!isLast) {
+        const epsId = String(nextId++);
+        nodes.push({ id: epsId, label: epsId, shape: 'circle', x: baseX + (2 + 2 * i) * dxS, y: 0, fixed: true });
+        edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
+        if (star) {
+          // skip punteado y loop curvo coloreado
+          const col = loopColor(i);
+          edges.push({ from: currentFrom, to: epsId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+          edges.push({ from: symId, to: currentFrom, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        }
+        currentFrom = epsId;
+      } else {
+        lastSymId = symId; lastStar = !!star; lastSkipFrom = currentFrom;
+        if (star) {
+          const col = loopColor(i);
+          edges.push({ from: symId, to: currentFrom, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        }
+      }
+    }
+  }
+  const acceptId = String(nextId++);
+  nodes.push({ id: acceptId, label: acceptId, shape: 'circle', x: baseX + (2 * tailTokens.length) * dxS + dxS, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+  if (lastSymId) {
+    edges.push({ from: lastSymId, to: acceptId, label: EPS, smooth: false });
+    if (lastStar && lastSkipFrom) edges.push({ from: lastSkipFrom, to: acceptId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+  } else {
+    edges.push({ from: currentFrom, to: acceptId, label: EPS, smooth: false });
+  }
+
+  drawVisual(nodes, edges);
+}
+
+// Unión múltiple con Kleene sobre el bloque y concatenación al final: (a+b+c+...)* tail
+function dibujarVisualUnionMultipleKleeneConCola(branchesTokens, tailTokens) {
+  const dx = POS.dxUnion, dy = POS.dyUnion, dxS = POS.dxSimple;
+  const nodes = [];
+  const edges = [];
+  const n = branchesTokens.length;
+  if (!Array.isArray(branchesTokens) || n < 2) return;
+
+  // 0 y 1
+  nodes.push({ id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true });
+  nodes.push({ id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true });
+  edges.push({ from: '0', to: '1', label: EPS, smooth: false });
+
+  // Split
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    nodes.push({ id: startId, label: startId, shape: 'circle', x: dx, y, fixed: true });
+    edges.push({ from: '1', to: startId, label: EPS, smooth: false });
+  }
+  // Símbolos por rama
+  const endpoints = new Array(n);
+  const pendingSkip = [];
+  for (let i = 0; i < n; i++) {
+    const y = (i - (n - 1) / 2) * dy;
+    const startId = String(2 + i);
+    const symId = String(2 + n + i);
+    const sym = branchesTokens[i][0].sym;
+    nodes.push({ id: symId, label: symId, shape: 'circle', x: 2 * dx, y, fixed: true });
+    edges.push({ from: startId, to: symId, label: sym, smooth: false });
+    if (branchesTokens[i][0].star) {
+      edges.push({ from: symId, to: startId, label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+      pendingSkip.push(startId);
+    }
+    endpoints[i] = symId;
+  }
+  // Join y aceptación del bloque
+  const joinId = String(2 + 2 * n);
+  const accId = String(2 + 2 * n + 1);
+  nodes.push({ id: joinId, label: joinId, shape: 'circle', x: 3 * dx, y: 0, fixed: true });
+  nodes.push({ id: accId, label: accId, shape: 'circle', x: 4 * dx, y: 0, fixed: true });
+  for (let i = 0; i < n; i++) edges.push({ from: endpoints[i], to: joinId, label: EPS, smooth: false });
+  for (const s of pendingSkip) {
+    edges.push({ from: s, to: joinId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+  }
+  edges.push({ from: joinId, to: accId, label: EPS, smooth: false });
+  // Kleene externo
+  edges.push({ from: '0', to: accId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.95 } });
+  edges.push({ from: joinId, to: '1', label: EPS, color: '#ff1493', width: 2.2, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.88 } });
+
+  // Concatenar cola desde accId (con nodos ε intermedios por símbolo)
+  let nextId = 2 + 2 * n + 2;
+  let currentFrom = accId;
+  let lastSymId2 = null; let lastStar2 = false; let lastSkipFrom2 = null;
+  let baseX = 4 * dx + dxS; // evitar solape con aceptación del bloque
+  if (tailTokens.length > 0) {
+    const startTailId = String(nextId++);
+    nodes.push({ id: startTailId, label: startTailId, shape: 'circle', x: baseX, y: 0, fixed: true });
+    // Permitir 0 repeticiones (acc -> cola) y >=1 repeticiones (join -> cola)
+    edges.push({ from: currentFrom, to: startTailId, label: EPS, smooth: false });
+    edges.push({ from: joinId, to: startTailId, label: EPS, smooth: false });
+    currentFrom = startTailId;
+    for (let i = 0; i < tailTokens.length; i++) {
+      const { sym, star } = tailTokens[i];
+      const symId = String(nextId++);
+      const xSym = baseX + (1 + 2 * i) * dxS;
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: xSym, y: 0, fixed: true });
+      edges.push({ from: currentFrom, to: symId, label: sym, smooth: false });
+      const isLast = (i === tailTokens.length - 1);
+      if (!isLast) {
+        const epsId = String(nextId++);
+        nodes.push({ id: epsId, label: epsId, shape: 'circle', x: baseX + (2 + 2 * i) * dxS, y: 0, fixed: true });
+        edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
+        if (star) {
+          const col = loopColor(i);
+          edges.push({ from: currentFrom, to: epsId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+          edges.push({ from: symId, to: currentFrom, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        }
+        currentFrom = epsId;
+      } else {
+        lastSymId2 = symId; lastStar2 = !!star; lastSkipFrom2 = currentFrom;
+        if (star) {
+          const col = loopColor(i);
+          edges.push({ from: symId, to: currentFrom, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        }
+      }
+    }
+  }
+  // Aceptación final
+  const finalAcc = String(nextId++);
+  nodes.push({ id: finalAcc, label: finalAcc, shape: 'circle', x: baseX + (2 * tailTokens.length) * dxS + dxS, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+  if (lastSymId2) {
+    edges.push({ from: lastSymId2, to: finalAcc, label: EPS, smooth: false });
+    if (lastStar2 && lastSkipFrom2) edges.push({ from: lastSkipFrom2, to: finalAcc, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+  } else {
+    edges.push({ from: currentFrom, to: finalAcc, label: EPS, smooth: false });
+  }
+
+  drawVisual(nodes, edges);
+}
 // Unión entre dos secuencias donde cada lado puede tener Cierre de Kleene aplicado al bloque completo
 // Ej.: (ab)* + b, a + (bc)*, (ab)* + (cd)*
 function dibujarVisualUnionSecuenciasConKleene(tokensLeft, tokensRight, leftWholeStar = false, rightWholeStar = false) {
@@ -322,6 +710,7 @@ function dibujarVisualUnionSecuenciasConKleene(tokensLeft, tokensRight, leftWhol
 function dibujarVisualUnionConCola(x, y, tailTokens) {
   const dxU = POS.dxUnion, dy = POS.dyUnion, dx = POS.dxSimple;
   const nodes = [
+    { id: '0', label: '0', shape: 'circle', x: -dxU, y: 0, fixed: true },
     { id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true },
     { id: '2', label: '2', shape: 'circle', x: dxU, y: -dy, fixed: true },
     { id: '3', label: '3', shape: 'circle', x: dxU, y: dy, fixed: true },
@@ -330,6 +719,7 @@ function dibujarVisualUnionConCola(x, y, tailTokens) {
     { id: '6', label: '6', shape: 'circle', x: 3*dxU, y: 0, fixed: true },
   ];
   const edges = [
+    { from: '0', to: '1', label: EPS, smooth: false },
     { from: '1', to: '2', label: EPS, smooth: false },
     { from: '1', to: '3', label: EPS, smooth: false },
     { from: '2', to: '4', label: x, smooth: false },
@@ -338,29 +728,53 @@ function dibujarVisualUnionConCola(x, y, tailTokens) {
     { from: '5', to: '6', label: EPS, smooth: false },
   ];
 
-  // Extender cola desde 6: 6 —ε→ n —s1→ n+1 —s2→ ... —ε→ accept
+  // Extender cola desde 6: 6 —ε→ n —s1→ ε —s2→ ε ... —ε→ accept
   let nextId = 7;
   let currentFrom = '6';
+  let lastSymId = null; let lastStar = false; let lastSkipFrom = null;
+  let baseX = 3*dxU + dx; // evitar solape con el join (6)
   if (tailTokens.length > 0) {
     // epsilon a primer nodo previo a la cola
     const startTailId = String(nextId++);
-    nodes.push({ id: startTailId, label: startTailId, shape: 'circle', x: 3*dxU + dx, y: 0, fixed: true });
+    nodes.push({ id: startTailId, label: startTailId, shape: 'circle', x: baseX, y: 0, fixed: true });
     edges.push({ from: currentFrom, to: startTailId, label: EPS, smooth: false });
     currentFrom = startTailId;
 
     for (let i = 0; i < tailTokens.length; i++) {
       const { sym, star } = tailTokens[i];
-      const toId = String(nextId++);
-      nodes.push({ id: toId, label: toId, shape: 'circle', x: 3*dxU + (i+2)*dx, y: 0, fixed: true });
-      edges.push({ from: currentFrom, to: toId, label: sym, smooth: false });
-      if (star) edges.push({ from: toId, to: currentFrom, label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
-      currentFrom = toId;
+      const symId = String(nextId++);
+      const xSym = baseX + (1 + 2 * i) * dx;
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: xSym, y: 0, fixed: true });
+      edges.push({ from: currentFrom, to: symId, label: sym, smooth: false });
+      const isLast = (i === tailTokens.length - 1);
+      if (!isLast) {
+        const epsId = String(nextId++);
+        nodes.push({ id: epsId, label: epsId, shape: 'circle', x: baseX + (2 + 2 * i) * dx, y: 0, fixed: true });
+        edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
+        if (star) {
+          const col = loopColor(i);
+          edges.push({ from: currentFrom, to: epsId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+          edges.push({ from: symId, to: currentFrom, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        }
+        currentFrom = epsId;
+      } else {
+        lastSymId = symId; lastStar = !!star; lastSkipFrom = currentFrom;
+        if (star) {
+          const col = loopColor(i);
+          edges.push({ from: symId, to: currentFrom, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        }
+      }
     }
   }
   // Aceptación final
   const acceptId = String(nextId++);
-  nodes.push({ id: acceptId, label: acceptId, shape: 'circle', x: 3*dxU + (tailTokens.length + 2)*dx, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
-  edges.push({ from: currentFrom, to: acceptId, label: EPS, smooth: false });
+  nodes.push({ id: acceptId, label: acceptId, shape: 'circle', x: baseX + (2 * tailTokens.length) * dx + dx, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+  if (lastSymId) {
+    edges.push({ from: lastSymId, to: acceptId, label: EPS, smooth: false });
+    if (lastStar && lastSkipFrom) edges.push({ from: lastSkipFrom, to: acceptId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+  } else {
+    edges.push({ from: currentFrom, to: acceptId, label: EPS, smooth: false });
+  }
 
   drawVisual(nodes, edges);
 }
@@ -596,9 +1010,10 @@ function dibujarVisualSecuencia(tokens) {
     nodes.push({ id: epsId, label: epsId, shape: 'circle', x: xEps, y: 0, fixed: true });
     edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
     if (star) {
-      // skip y repetición para *
-      edges.push({ from: beforeId, to: epsId, label: EPS, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
-      edges.push({ from: symId, to: beforeId, label: EPS, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+      // skip y repetición para * (punteado en skip y color en loop)
+      const col = loopColor(i);
+      edges.push({ from: beforeId, to: epsId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+      edges.push({ from: symId, to: beforeId, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
     }
     currentFromId = Number(epsId);
   }
@@ -611,6 +1026,21 @@ function dibujarVisualSecuencia(tokens) {
 
 function dibujarVisualDesdePatron(pattern) {
   const p = (pattern || '').trim();
+  if (FORCE_GENERIC) {
+    try {
+      const p2 = p.replace(/\s+/g, '');
+      const { states, transitions, startState, acceptStates } = construirAFNDesdeRegex(p2);
+      const nodes = states.map(s => ({ id: s, label: s, shape: 'circle' }));
+      for (const acc of acceptStates) {
+        const n = nodes.find(x => x.id === acc);
+        if (n) n.color = { border: '#16a34a', background: '#dcfce7' };
+      }
+      const edges = transitions.map(t => ({ from: t.from, to: t.to, label: t.label }));
+      nodes.unshift({ id: '__start__', shape: 'point' });
+      edges.unshift({ from: '__start__', to: startState, label: EPS });
+      return drawVisualGeneric(nodes, edges);
+    } catch (_) {}
+  }
   const mUnion = /^([a-zA-Z])\s*(\*)?\s*\+\s*([a-zA-Z])\s*(\*)?$/.exec(p);
   // Soportar unión parentizada simple: (a+b), con * opcional en cada lado
   const mParenUnion = /^\(\s*([a-zA-Z])\s*(\*)?\s*\+\s*([a-zA-Z])\s*(\*)?\s*\)$/.exec(p);
@@ -620,7 +1050,15 @@ function dibujarVisualDesdePatron(pattern) {
   // Cadena de uniones con 3+ términos sin paréntesis: a+b+c, ab+cd*+e
   const isUnionChain = !/[()]/.test(p) && /\+/.test(p) && (p.split('+').length >= 3) && /^\s*(?:[a-zA-Z]\*?(?:\s*\.?\s*[a-zA-Z]\*?)*)(?:\s*\+\s*(?:[a-zA-Z]\*?(?:\s*\.?\s*[a-zA-Z]\*?)*))+\s*$/.test(p);
   const mUnionWithTail = /^\s*([a-zA-Z])\s*\+\s*([a-zA-Z])\s*((?:\s*\.?\s*[a-zA-Z]\*?\s*)+)\s*$/.exec(p);
+  // (x+y) concatenado con cola: (a+b)c, (a+b)bc*, etc.
+  const mParenUnionWithTail = /^\(\s*([a-zA-Z])\s*\+\s*([a-zA-Z])\s*\)\s*((?:\s*\.?\s*[a-zA-Z]\*?\s*)+)\s*$/.exec(p);
   const mParenKleene = /^\(\s*([a-zA-Z])\s*\+\s*([a-zA-Z])\s*\)\s*\*$/.exec(p);
+  // Kleene sobre cadena de uniones: (a+b+c+...)*
+  const mParenUnionChainK = /^\(\s*(?:[a-zA-Z]\*?\s*(?:\+\s*[a-zA-Z]\*?)+)\s*\)\s*\*$/.exec(p);
+  // (a+b+c+... ) concatenado con cola: (a+b+c+...) tail
+  const mParenUnionChainWithTail = /^\(\s*((?:[a-zA-Z]\*?\s*(?:\+\s*[a-zA-Z]\*?)+))\s*\)\s*((?:\s*\.?\s*[a-zA-Z]\*?\s*)+)$/.exec(p);
+  // (a+b+c+...)* concatenado con cola: (a+b+c+...)* tail
+  const mParenUnionChainKWithTail = /^\(\s*((?:[a-zA-Z]\*?\s*(?:\+\s*[a-zA-Z]\*?)+))\s*\)\s*\*\s*((?:\s*\.?\s*[a-zA-Z]\*?\s*)+)$/.exec(p);
   const mParenConcatKleene = /^\(\s*([a-zA-Z])\s*\.?\s*([a-zA-Z])\s*\)\s*\*$/.exec(p);
   const isParenSeqKleene = /^\(\s*(?:[a-zA-Z]\*?\s*\.?\s*)+\)\s*\*$/.test(p);
   // (secuencia)* + secuencia   o   secuencia + (secuencia)*
@@ -807,6 +1245,15 @@ function dibujarVisualDesdePatron(pattern) {
     while ((m = re.exec(tailStr)) !== null) tokens.push({ sym: m[1], star: !!m[2] });
     if (tokens.length >= 1) return dibujarVisualUnionConCola(x, y, tokens);
   }
+  if (mParenUnionWithTail) {
+    const x = mParenUnionWithTail[1];
+    const y = mParenUnionWithTail[2];
+    const tailStr = mParenUnionWithTail[3];
+    const tokens = [];
+    const re = /([a-zA-Z])(\*)?/g; let m;
+    while ((m = re.exec(tailStr)) !== null) tokens.push({ sym: m[1], star: !!m[2] });
+    if (tokens.length >= 1) return dibujarVisualUnionConCola(x, y, tokens);
+  }
 
   if (mParenKleene) {
     const x = mParenKleene[1];
@@ -853,12 +1300,53 @@ function dibujarVisualDesdePatron(pattern) {
   if (mKleene) {
     return dibujarVisualKleene(mKleene[1]);
   }
+  // (a+b+c+...)* → aplicar split/join y añadir las dos epsilons del Kleene externo
+  if (mParenUnionChainK) {
+    const inner = p.replace(/^\(\s*/, '').replace(/\)\s*\*\s*$/, '');
+    const parts = inner.split('+').map(s => s.trim()).filter(Boolean);
+    const branches = parts.map(sym => [{ sym: sym.replace(/\s|\.|\*/g, ''), star: false }]);
+    if (branches.length >= 2) return dibujarVisualUnionMultipleKleene(branches);
+  }
+  // (a+b+c+...) tail
+  if (mParenUnionChainWithTail) {
+    const inner = mParenUnionChainWithTail[1];
+    const tailStr = mParenUnionChainWithTail[2];
+    const parts = inner.split('+').map(s => s.trim()).filter(Boolean);
+    const branches = parts.map(sym => [{ sym: sym.replace(/\s|\./g, '').replace(/\*/g, ''), star: /\*/.test(sym) }]);
+    const tokens = []; const re = /([a-zA-Z])(\*)?/g; let m;
+    while ((m = re.exec(tailStr)) !== null) tokens.push({ sym: m[1], star: !!m[2] });
+    if (branches.length >= 2 && tokens.length >= 1) return dibujarVisualUnionMultipleConCola(branches, tokens);
+  }
+  // (a+b+c+...)* tail
+  if (mParenUnionChainKWithTail) {
+    const inner = mParenUnionChainKWithTail[1];
+    const tailStr = mParenUnionChainKWithTail[2];
+    const parts = inner.split('+').map(s => s.trim()).filter(Boolean);
+    const branches = parts.map(sym => [{ sym: sym.replace(/\s|\./g, '').replace(/\*/g, ''), star: /\*/.test(sym) }]);
+    const tokens = []; const re = /([a-zA-Z])(\*)?/g; let m;
+    while ((m = re.exec(tailStr)) !== null) tokens.push({ sym: m[1], star: !!m[2] });
+    if (branches.length >= 2 && tokens.length >= 1) return dibujarVisualUnionMultipleKleeneConCola(branches, tokens);
+  }
   if (mSimple) {
     return dibujarVisualSimple(mSimple[1]);
   }
 
   if (visualContainer) {
-    visualContainer.innerHTML = '<div style="color:#666">Ingresa: secuencias como abcdef, ab*c*, a*b*c o (abc)*; además letra, letra*, letra+letra, (letra+letra)*, (letra.letra)*, letra*letra, letra letra* o letra*letra*</div>';
+    try {
+      const p2 = p.replace(/\s+/g, '');
+      const { states, transitions, startState, acceptStates } = construirAFNDesdeRegex(p2);
+      const nodes = states.map(s => ({ id: s, label: s, shape: 'circle' }));
+      for (const acc of acceptStates) {
+        const n = nodes.find(x => x.id === acc);
+        if (n) n.color = { border: '#16a34a', background: '#dcfce7' };
+      }
+      const edges = transitions.map(t => ({ from: t.from, to: t.to, label: t.label }));
+      nodes.unshift({ id: '__start__', shape: 'point' });
+      edges.unshift({ from: '__start__', to: startState, label: EPS });
+      return drawVisualGeneric(nodes, edges);
+    } catch (_) {
+      visualContainer.innerHTML = '<div style="color:#666">Ingresa: secuencias como abcdef, ab*c*, a*b*c o (abc)*; además letra, letra*, letra+letra, (letra+letra)*, (letra.letra)*, letra*letra, letra letra* o letra*letra*</div>';
+    }
   }
 }
 

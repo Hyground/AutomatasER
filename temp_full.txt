@@ -1,0 +1,104 @@
+function dibujarVisualUnionConCola(x, y, tailTokens) {
+  const dxU = POS.dxUnion, dy = POS.dyUnion, dx = POS.dxSimple;
+  const nodes = [
+    { id: '0', label: '0', shape: 'circle', x: -dxU, y: 0, fixed: true },
+    { id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true },
+    { id: '2', label: '2', shape: 'circle', x: dxU, y: -dy, fixed: true },
+    { id: '3', label: '3', shape: 'circle', x: dxU, y: dy, fixed: true },
+    { id: '4', label: '4', shape: 'circle', x: 2*dxU, y: -dy, fixed: true },
+    { id: '5', label: '5', shape: 'circle', x: 2*dxU, y: dy, fixed: true },
+    { id: '6', label: '6', shape: 'circle', x: 3*dxU, y: 0, fixed: true },
+  ];
+  const edges = [
+    { from: '0', to: '1', label: EPS, smooth: false },
+    { from: '1', to: '2', label: EPS, smooth: false },
+    { from: '1', to: '3', label: EPS, smooth: false },
+    { from: '2', to: '4', label: x, smooth: false },
+    { from: '3', to: '5', label: y, smooth: false },
+    { from: '4', to: '6', label: EPS, smooth: false },
+    { from: '5', to: '6', label: EPS, smooth: false },
+  ];
+
+  // Extender cola desde 6: 6 —ε→ n —s1→ ε —s2→ ε ... —ε→ accept
+  let nextId = 7;
+  let currentFrom = '6';
+  if (tailTokens.length > 0) {
+    // epsilon a primer nodo previo a la cola
+    const startTailId = String(nextId++);
+    const baseX = 3*dxU + 0;
+    nodes.push({ id: startTailId, label: startTailId, shape: 'circle', x: baseX, y: 0, fixed: true });
+    edges.push({ from: currentFrom, to: startTailId, label: EPS, smooth: false });
+    currentFrom = startTailId;
+
+    for (let i = 0; i < tailTokens.length; i++) {
+      const { sym, star } = tailTokens[i];
+      const symId = String(nextId++);
+      const xSym = baseX + (1 + 2 * i) * dx;
+      nodes.push({ id: symId, label: symId, shape: 'circle', x: xSym, y: 0, fixed: true });
+      edges.push({ from: currentFrom, to: symId, label: sym, smooth: false });
+      const isLast = (i === tailTokens.length - 1);
+      if (!isLast) {
+        const epsId = String(nextId++);
+        nodes.push({ id: epsId, label: epsId, shape: 'circle', x: baseX + (2 + 2 * i) * dx, y: 0, fixed: true });
+        edges.push({ from: symId, to: epsId, label: EPS, smooth: false });
+        if (star) {
+          const col = loopColor(i);
+          edges.push({ from: currentFrom, to: epsId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+          edges.push({ from: symId, to: currentFrom, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        }
+        currentFrom = epsId;
+      } else {
+        lastSymId = symId; lastStar = !!star; lastSkipFrom = currentFrom;
+        if (star) {
+          const col = loopColor(i);
+          edges.push({ from: symId, to: currentFrom, label: EPS, color: col, smooth: { enabled: true, type: 'curvedCCW', roundness: 0.6 } });
+        }
+      }
+    }
+  }
+  // Aceptación final
+  const acceptId = String(nextId++);
+  nodes.push({ id: acceptId, label: acceptId, shape: 'circle', x: (3*dxU) + (2 * tailTokens.length + 1) * dx, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } });
+  if (lastSymId) {
+    edges.push({ from: lastSymId, to: acceptId, label: EPS, smooth: false });
+    if (lastStar && lastSkipFrom) edges.push({ from: lastSkipFrom, to: acceptId, label: EPS, dashes: true, smooth: { enabled: true, type: 'curvedCW', roundness: 0.6 } });
+  } else {
+    edges.push({ from: currentFrom, to: acceptId, label: EPS, smooth: false });
+  }
+
+  drawVisual(nodes, edges);
+}
+
+function dibujarVisualSimple(simbolo) {
+  const dx = POS.dxSimple;
+  const nodes = [
+    { id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true },
+    { id: '2', label: '2', shape: 'circle', x: dx, y: 0, fixed: true },
+    { id: '3', label: '3', shape: 'circle', x: 2*dx, y: 0, fixed: true },
+    { id: '4', label: '4', shape: 'circle', x: 3*dx, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } },
+  ];
+
+  const edges = [
+    { from: '1', to: '2', label: EPS, smooth: false },
+    { from: '2', to: '3', label: simbolo, smooth: false },
+    { from: '3', to: '4', label: EPS, smooth: false },
+  ];
+
+  drawVisual(nodes, edges);
+}
+
+function dibujarVisualKleene(simbolo) {
+  const dx = POS.dxSimple;
+  const nodes = [
+    { id: '0', label: '0', shape: 'circle', x: -dx, y: 0, fixed: true },
+    { id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true },
+    { id: '2', label: '2', shape: 'circle', x: dx, y: 0, fixed: true },
+    { id: '3', label: '3', shape: 'circle', x: 2*dx, y: 0, fixed: true, color: { border: '#16a34a', background: '#dcfce7' } },
+  ];
+
+  const edges = [
+    { from: '0', to: '1', label: EPS, smooth: false },
+    { from: '1', to: '2', label: simbolo, smooth: false },
+    { from: '2', to: '3', label: EPS, smooth: false },
+    // Aceptación del vacío desde el estado global de inicio (curva inferior)
+    { from: '0', to: '3', label: EPS, smooth: { enabled: true, type

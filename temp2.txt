@@ -1,0 +1,25 @@
+function dibujarVisualUnionConCola(x, y, tailTokens) {
+  const dxU = POS.dxUnion, dy = POS.dyUnion, dx = POS.dxSimple;
+  const nodes = [
+    { id: '0', label: '0', shape: 'circle', x: -dxU, y: 0, fixed: true },
+    { id: '1', label: '1', shape: 'circle', x: 0, y: 0, fixed: true },
+    { id: '2', label: '2', shape: 'circle', x: dxU, y: -dy, fixed: true },
+    { id: '3', label: '3', shape: 'circle', x: dxU, y: dy, fixed: true },
+    { id: '4', label: '4', shape: 'circle', x: 2*dxU, y: -dy, fixed: true },
+    { id: '5', label: '5', shape: 'circle', x: 2*dxU, y: dy, fixed: true },
+    { id: '6', label: '6', shape: 'circle', x: 3*dxU, y: 0, fixed: true },
+  ];
+  const edges = [
+    { from: '0', to: '1', label: EPS, smooth: false },
+    { from: '1', to: '2', label: EPS, smooth: false },
+    { from: '1', to: '3', label: EPS, smooth: false },
+    { from: '2', to: '4', label: x, smooth: false },
+    { from: '3', to: '5', label: y, smooth: false },
+    { from: '4', to: '6', label: EPS, smooth: false },
+    { from: '5', to: '6', label: EPS, smooth: false },
+  ];
+
+  // Extender cola desde 6: 6 —ε→ n —s1→ ε —s2→ ε ... —ε→ accept
+  let nextId = 7;
+  let currentFrom = '6';
+  if (tail
